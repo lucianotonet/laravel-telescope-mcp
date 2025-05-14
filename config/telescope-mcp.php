@@ -12,10 +12,10 @@ return [
     'path' => env('TELESCOPE_MCP_PATH', 'telescope/mcp'),
 
     'logging' => [
-        // 'enabled' => env('TELESCOPE_MCP_LOGGING', true),
-        // 'channel' => env('TELESCOPE_MCP_LOG_CHANNEL', 'daily'),
-        // 'path' => storage_path('logs/telescope-mcp.log'),
-        // 'level' => env('TELESCOPE_MCP_LOG_LEVEL', 'debug'),
-        // 'days' => env('TELESCOPE_MCP_LOG_DAYS', 7),
+        'enabled' => env('TELESCOPE_MCP_LOGGING', true),
+        'channel' => env('TELESCOPE_MCP_LOG_CHANNEL'),
+        'path' => storage_path('logs/telescope-mcp.log'),
+        'level' => env('TELESCOPE_MCP_LOG_LEVEL', 'debug'),
+        'days' => env('TELESCOPE_MCP_LOG_DAYS', 7),
     ],
 ]; 
