@@ -9,7 +9,7 @@ return [
         // Ou usar auth:api para proteção
     ],
     
-    'path' => env('TELESCOPE_MCP_PATH', 'mcp'),
+    'path' => env('TELESCOPE_MCP_PATH', 'telescope/mcp'),
 
     'logging' => [
         // 'enabled' => env('TELESCOPE_MCP_LOGGING', true),
