@@ -62,25 +62,15 @@ class RequestsTool
     
     public function execute($params)
     {
+        Logger::info('RequestsTool execute method entered'); // Simplified log
+
         try {
-            Logger::info('RequestsTool execute started', [
-                'params' => $params,
-                'request_id' => request()->input('id'),
-                'request_method' => request()->method(),
-                'request_path' => request()->path()
-            ]);
-            
             // Definir limite rígido para evitar problemas
             set_time_limit(5);
             
             // Limite padrão e tag
             $limit = min((int)($params['limit'] ?? 50), 100);
             $tag = $params['tag'] ?? null;
-            
-            Logger::debug('RequestsTool parameters processed', [
-                'limit' => $limit,
-                'tag' => $tag
-            ]);
             
             // Criar um resultado padrão para casos de erro
             $mockResults = [];
@@ -97,75 +87,83 @@ class RequestsTool
             
             $results = [];
             
-            // Se estivermos em ambiente de teste ou desenvolvimento, retornar dados simulados
-            if (app()->environment(['testing', 'local'])) {
-                Logger::info('RequestsTool using mock data in testing/local environment');
+            // Verificar repositório
+            if (empty($this->entriesRepository)) {
+                Logger::warning('RequestsTool repository not available, using mock data');
                 $results = $mockResults;
             } else {
-                // Verificar repositório
-                if (empty($this->entriesRepository)) {
-                    Logger::warning('RequestsTool repository not available, using mock data');
-                    $results = $mockResults;
-                } else {
-                    // Configurar opções
-                    $options = new EntryQueryOptions();
-                    $options->limit($limit);
+                // Configurar opções
+                $options = new EntryQueryOptions();
+                $options->limit($limit);
+                
+                if (!empty($tag)) {
+                    // Note: Tag filtering in Telescope typically applies to entries tagged with a specific string,
+                    // not necessarily filtering by request URI directly.
+                    // We will still apply it if provided, but be aware it might not filter by URL as expected.
+                    $options->tag($tag);
+                }
+                
+                Logger::debug('RequestsTool querying repository', [
+                    'options' => [
+                        'limit' => $limit,
+                        'tag' => $tag
+                    ]
+                ]);
+                
+                // Buscar entradas com timeout curto
+                try {
+                    $startTime = microtime(true);
                     
-                    if (!empty($tag)) {
-                        $options->tag($tag);
+                    Logger::debug('RequestsTool before repository get', ['repository_class' => get_class($this->entriesRepository)]);
+                    
+                    $entries = $this->entriesRepository->get(EntryType::REQUEST, $options);
+                    
+                    // Adicionar log para inspecionar a estrutura de EntryResult
+                    if (!empty($entries)) {
+                        Logger::debug('RequestsTool EntryResult structure', ['entry' => $entries[0]]);
                     }
                     
-                    Logger::debug('RequestsTool querying repository', [
-                        'options' => [
-                            'limit' => $limit,
-                            'tag' => $tag
-                        ]
+                    Logger::debug('RequestsTool after repository get', ['entries_count' => count($entries)]);
+                    
+                    $duration = microtime(true) - $startTime;
+                    
+                    Logger::info('RequestsTool query completed', [
+                        'count' => count($entries),
+                        'duration' => $duration
                     ]);
                     
-                    // Buscar entradas com timeout curto
-                    try {
-                        $startTime = microtime(true);
-                        $entries = $this->entriesRepository->get(EntryType::REQUEST, $options);
-                        $duration = microtime(true) - $startTime;
-                        
-                        Logger::info('RequestsTool query completed', [
-                            'count' => count($entries),
-                            'duration' => $duration
-                        ]);
-                        
-                        // Se demorou mais de 2 segundos, logue como aviso
-                        if ($duration > 2) {
-                            Logger::warning('RequestsTool query slow', ['duration' => $duration]);
-                        }
-                        
-                        // Processar entradas rapidamente
-                        if (count($entries) > 0) {
-                            foreach ($entries as $entry) {
-                                $results[] = [
-                                    'id' => (string)$entry->id,
-                                    'url' => $entry->content['uri'] ?? 'Unknown',
-                                    'method' => $entry->content['method'] ?? 'Unknown',
-                                    'status' => (int)($entry->content['response_status'] ?? 0),
-                                    'duration' => (float)($entry->content['duration'] ?? 0),
-                                    'created_at' => $entry->created_at ? $entry->created_at->toIso8601String() : null,
-                                ];
-                                
-                                // Limitar o número de resultados
-                                if (count($results) >= $limit) {
-                                    break;
-                                }
+                    // Se demorou mais de 2 segundos, logue como aviso
+                    if ($duration > 2) {
+                        Logger::warning('RequestsTool query slow', ['duration' => $duration]);
+                    }
+                    
+                    // Processar entradas rapidamente
+                    if (count($entries) > 0) {
+                        foreach ($entries as $entry) {
+                            $results[] = [
+                                'id' => (string)$entry->id,
+                                'url' => $entry->content['uri'] ?? 'Unknown',
+                                'method' => $entry->content['method'] ?? 'Unknown',
+                                'status' => (int)($entry->content['response_status'] ?? 0),
+                                'duration' => (float)($entry->content['duration'] ?? 0),
+                                'created_at' => ($entry && isset($entry->created_at) && $entry->created_at) ? (is_object($entry->created_at) && method_exists($entry->created_at, 'toIso8601String') ? $entry->created_at->toIso8601String() : (string) $entry->created_at) : null,
+                            ];
+                            
+                            // Limitar o número de resultados
+                            if (count($results) >= $limit) {
+                                break;
                             }
-                        } else {
-                            Logger::info('RequestsTool no entries found, using mock data');
-                            $results = $mockResults;
                         }
-                    } catch (\Exception $e) {
-                        Logger::error('RequestsTool query failed', [
-                            'error' => $e->getMessage(),
-                            'trace' => $e->getTraceAsString()
-                        ]);
+                    } else {
+                        Logger::info('RequestsTool no entries found, using mock data');
                         $results = $mockResults;
                     }
+                } catch (\Exception $e) {
+                    Logger::error('RequestsTool query failed', [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString()
+                    ]);
+                    $results = $mockResults;
                 }
             }
             

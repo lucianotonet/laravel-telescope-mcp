@@ -66,12 +66,18 @@ class LogsTool
     public function execute($params)
     {
         try {
-            $query = TelescopeEntry::where('type', 'log')
-                ->orderBy('sequence', 'desc')
-                ->take(100)
-                ->get();
+            // Configurar opções de consulta
+            $options = new EntryQueryOptions();
+            $options->limit($params['limit'] ?? 100);
+            
+            if (!empty($params['level'])) {
+                $options->tag($params['level']);
+            }
+            
+            // Buscar entradas usando o repositório
+            $entries = $this->entriesRepository->get(EntryType::LOG, $options);
 
-            $logs = $query->map(function ($entry) {
+            $logs = collect($entries)->map(function ($entry) {
                 $content = json_decode($entry->content, true);
                 return [
                     'id' => $entry->sequence,
