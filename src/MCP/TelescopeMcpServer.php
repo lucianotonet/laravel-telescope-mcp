@@ -28,6 +28,13 @@ class TelescopeMcpServer
 {
     protected $entriesRepository;
     protected $tools;
+    
+    /**
+     * Prefixo para nomes de ferramenta
+     * 
+     * @var string
+     */
+    protected $toolPrefix = '';
 
     public function __construct(EntriesRepository $entriesRepository)
     {
@@ -37,6 +44,7 @@ class TelescopeMcpServer
         // Registrar ferramentas existentes
         $this->registerTool(new RequestsTool($entriesRepository));
         $this->registerTool(new LogsTool($entriesRepository));
+        $this->registerTool(new ExceptionsTool($entriesRepository));
 
         // Registrar novas ferramentas
         $this->registerTool(new BatchesTool($entriesRepository));
@@ -44,7 +52,6 @@ class TelescopeMcpServer
         $this->registerTool(new CommandsTool($entriesRepository));
         $this->registerTool(new DumpsTool($entriesRepository));
         $this->registerTool(new EventsTool($entriesRepository));
-        $this->registerTool(new ExceptionsTool($entriesRepository));
         $this->registerTool(new GatesTool($entriesRepository));
         $this->registerTool(new HttpClientTool($entriesRepository));
         $this->registerTool(new JobsTool($entriesRepository));
@@ -60,16 +67,100 @@ class TelescopeMcpServer
         $this->registerTool(new PruneTool());
     }
     
+    /**
+     * Registra uma ferramenta no servidor MCP
+     * 
+     * @param object $tool
+     * @return void
+     */
     public function registerTool($tool)
     {
-        $this->tools->put($tool->getName(), $tool);
+        // Usar o nome fornecido pela ferramenta
+        $toolName = $tool->getName();
+        
+        // Adicionar à coleção
+        $this->tools->put($toolName, $tool);
     }
     
+    /**
+     * Verifica se uma ferramenta está registrada
+     * 
+     * @param string $toolName
+     * @return bool
+     */
     public function hasTool($toolName)
     {
-        return $this->tools->has($toolName);
+        // Tentar buscar pelo nome exato
+        if ($this->tools->has($toolName)) {
+            return true;
+        }
+        
+        // Se for um nome antigo, verificar com o prefixo
+        $legacyName = 'mcp_telescope_' . $toolName;
+        if ($this->tools->has($legacyName)) {
+            return true;
+        }
+        
+        // Verificar sem o prefixo para compatibilidade
+        foreach ($this->tools as $name => $tool) {
+            if ($this->getShortToolName($name) === $toolName) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
+    /**
+     * Obtém o nome curto de uma ferramenta
+     * 
+     * @param string $toolName
+     * @return string
+     */
+    protected function getShortToolName($toolName)
+    {
+        // Remover o prefixo "mcp_telescope_" se existir
+        if (strpos($toolName, 'mcp_telescope_') === 0) {
+            return substr($toolName, strlen('mcp_telescope_'));
+        }
+        
+        return $toolName;
+    }
+    
+    /**
+     * Obtém uma ferramenta pelo nome
+     * 
+     * @param string $toolName
+     * @return object|null
+     */
+    protected function getTool($toolName)
+    {
+        // Tentar buscar pelo nome exato
+        if ($this->tools->has($toolName)) {
+            return $this->tools->get($toolName);
+        }
+        
+        // Se for um nome antigo, verificar com o prefixo
+        $legacyName = 'mcp_telescope_' . $toolName;
+        if ($this->tools->has($legacyName)) {
+            return $this->tools->get($legacyName);
+        }
+        
+        // Verificar sem o prefixo para compatibilidade
+        foreach ($this->tools as $name => $tool) {
+            if ($this->getShortToolName($name) === $toolName) {
+                return $tool;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Obtém o manifesto do servidor MCP
+     * 
+     * @return array
+     */
     public function getManifest()
     {
         // Format tools to match MCP client expectations
@@ -112,14 +203,22 @@ class TelescopeMcpServer
         ];
     }
     
+    /**
+     * Executa uma ferramenta com os parâmetros fornecidos
+     * 
+     * @param string $toolName
+     * @param array $params
+     * @return array
+     */
     public function executeTool($toolName, $params)
     {
-        if (!$this->tools->has($toolName)) {
+        $tool = $this->getTool($toolName);
+        
+        if (!$tool) {
             throw new \Exception("Tool not found: {$toolName}");
         }
         
         try {
-            $tool = $this->tools->get($toolName);
             $result = $tool->execute($params);
             
             // Log the execution result

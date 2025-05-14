@@ -1,6 +1,6 @@
 # Laravel Telescope MCP Tools
 
-This package provides MCP (Monitoring Control Panel) tools for Laravel Telescope, allowing you to access Telescope data through a standardized API.
+This package provides MCP (Model Context Protocol) tools for Laravel Telescope, enabling seamless access to Telescope data through a standardized API. With these tools, developers can monitor and manage various aspects of their Laravel applications, such as HTTP requests, logs, and other telemetry data captured by Telescope, via the MCP protocol, directly on your Cursor, Claude, Windsurf, etc.
 
 ## Available Tools
 

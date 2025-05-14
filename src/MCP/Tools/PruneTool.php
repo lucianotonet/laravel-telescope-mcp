@@ -4,19 +4,31 @@ namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use LucianoTonet\TelescopeMcp\Support\Logger;
 use Illuminate\Support\Facades\Artisan;
+use Laravel\Telescope\Contracts\EntriesRepository;
 
-class PruneTool
+class PruneTool extends AbstractTool
 {
-    public function __construct()
-    {
-        // Constructor might not need dependencies for now
-    }
-
+    /**
+     * Retorna o nome da ferramenta
+     *
+     * @return string
+     */
     public function getName()
     {
-        return 'mcp_telescope_prune';
+        return $this->getShortName();
     }
 
+    /**
+     * Retorna o nome curto da ferramenta
+     */
+    public function getShortName()
+    {
+        return 'prune';
+    }
+
+    /**
+     * Retorna o esquema da ferramenta
+     */
     public function getSchema()
     {
         return [
@@ -72,38 +84,32 @@ class PruneTool
 
         if ($hours !== null && is_int($hours) && $hours > 0) {
             $artisanParams['--hours'] = $hours;
-            $message = "PruneTool is under development. It would attempt to prune entries older than {$hours} hours.";
+            Logger::info('Pruning Telescope entries', ['hours' => $hours]);
+            $message = "Attempting to prune Telescope entries older than {$hours} hours...";
         } else {
-            // If hours is null, 0 or not an int, it implies all entries (or default behavior of telescope:prune)
-            $message = "PruneTool is under development. It would attempt to prune all entries (or default behavior).";
+            // If hours is null, 0 or not an int, it implies pruning all entries (or default behavior)
+            Logger::info('Pruning all Telescope entries (or default behavior)');
+            $message = "Attempting to prune all Telescope entries (or using default behavior)...";
         }
-        
-        // Actual Artisan call would be:
-        // try {
-        //     Artisan::call('telescope:prune', $artisanParams);
-        //     $output = Artisan::output();
-        //     Logger::info('telescope:prune command output', ['output' => $output]);
-        //     $message = $output ?: 'Telescope entries pruned successfully.';
-        // } catch (\Exception $e) {
-        //     Logger::error('Error executing telescope:prune', ['error' => $e->getMessage()]);
-        //     $message = 'Error executing telescope:prune: ' . $e->getMessage();
-        //     return [
-        //         'content' => [
-        //             [
-        //                 'type' => 'error',
-        //                 'text' => $message
-        //             ]
-        //         ]
-        //     ];
-        // }
 
-        return [
-            'content' => [
-                [
-                    'type' => 'text',
-                    'text' => $message . " Params received: " . json_encode($params)
+        // Actual Artisan call would be:
+        try {
+            Artisan::call('telescope:prune', $artisanParams);
+            $output = Artisan::output();
+            Logger::info('telescope:prune command output', ['output' => $output]);
+            $resultText = $output ?: 'Telescope entries pruned successfully.';
+            return $this->formatResponse($resultText);
+        } catch (\Exception $e) {
+            Logger::error('Error executing telescope:prune', ['error' => $e->getMessage()]);
+            $errorText = 'Error executing telescope:prune: ' . $e->getMessage();
+            return [
+                'content' => [
+                    [
+                        'type' => 'error',
+                        'text' => $errorText
+                    ]
                 ]
-            ]
-        ];
+            ];
+        }
     }
 } 
