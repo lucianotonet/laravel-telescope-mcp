@@ -26,18 +26,18 @@ class LogsTool
     {
         return [
             'name' => $this->getName(),
-            'description' => 'Retrieve application logs from Telescope',
+            'description' => 'Retrieve application logs from Telescope. The tool returns logs with their messages, levels, timestamps and context. It can filter logs by level and limit the number of results.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'limit' => [
                         'type' => 'integer',
-                        'description' => 'Maximum number of logs to return',
+                        'description' => 'Maximum number of logs to return. Default is 100.',
                         'default' => 100
                     ],
                     'level' => [
                         'type' => 'string',
-                        'description' => 'Filter logs by level',
+                        'description' => 'Filter logs by level. Case insensitive.',
                         'enum' => ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency']
                     ]
                 ],
@@ -59,6 +59,21 @@ class LogsTool
                     ]
                 ],
                 'required' => ['content']
+            ],
+            'examples' => [
+                [
+                    'description' => 'Get last 10 error logs',
+                    'params' => [
+                        'level' => 'error',
+                        'limit' => 10
+                    ]
+                ],
+                [
+                    'description' => 'Get all debug logs (up to 100)',
+                    'params' => [
+                        'level' => 'debug'
+                    ]
+                ]
             ]
         ];
     }
@@ -70,23 +85,55 @@ class LogsTool
             $options = new EntryQueryOptions();
             $options->limit($params['limit'] ?? 100);
             
-            if (!empty($params['level'])) {
-                $options->tag($params['level']);
-            }
-            
             // Buscar entradas usando o repositório
             $entries = $this->entriesRepository->get(EntryType::LOG, $options);
 
-            $logs = collect($entries)->map(function ($entry) {
-                $content = json_decode($entry->content, true);
-                return [
-                    'id' => $entry->sequence,
-                    'timestamp' => $entry->created_at->toIso8601String(),
-                    'level' => $content['level'] ?? 'info',
-                    'message' => $content['message'] ?? '',
-                    'context' => $content['context'] ?? []
-                ];
-            });
+            $logs = collect($entries)
+                ->map(function ($entry) {
+                    $content = is_array($entry->content) ? $entry->content : [];
+                    
+                    // Se o conteúdo tiver uma estrutura específica com message e context
+                    if (isset($content['message'])) {
+                        return [
+                            'id' => $entry->sequence,
+                            'timestamp' => property_exists($entry, 'createdAt') && $entry->createdAt ? $entry->createdAt->toIso8601String() : null,
+                            'level' => $content['level'] ?? 'info',
+                            'message' => $content['message'],
+                            'context' => $content['context'] ?? []
+                        ];
+                    }
+                    
+                    // Se o conteúdo tiver uma estrutura com type e text (como visto nos logs)
+                    if (isset($content['content']) && is_array($content['content'])) {
+                        foreach ($content['content'] as $item) {
+                            if (isset($item['type']) && $item['type'] === 'text' && isset($item['text'])) {
+                                return [
+                                    'id' => $entry->sequence,
+                                    'timestamp' => property_exists($entry, 'createdAt') && $entry->createdAt ? $entry->createdAt->toIso8601String() : null,
+                                    'level' => $content['level'] ?? 'info',
+                                    'message' => $item['text'],
+                                    'context' => $content['context'] ?? []
+                                ];
+                            }
+                        }
+                    }
+                    
+                    // Fallback para outros casos
+                    return [
+                        'id' => $entry->sequence,
+                        'timestamp' => property_exists($entry, 'createdAt') && $entry->createdAt ? $entry->createdAt->toIso8601String() : null,
+                        'level' => $content['level'] ?? 'info',
+                        'message' => json_encode($content, JSON_PRETTY_PRINT),
+                        'context' => []
+                    ];
+                });
+
+            // Aplicar filtro por nível se especificado
+            if (!empty($params['level'])) {
+                $logs = $logs->filter(function ($log) use ($params) {
+                    return strtolower($log['level']) === strtolower($params['level']);
+                });
+            }
 
             return [
                 'content' => [
