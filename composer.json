@@ -1,0 +1,21 @@
+{
+    "name": "luciano-tonet/laravel-telescope-mcp",
+    "description": "MCP Server extension for Laravel Telescope",
+    "require": {
+        "php": "^8.1",
+        "laravel/framework": "^10.0|^11.0|^12.0",
+        "laravel/telescope": "^4.0|^5.0|^6.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "LucianoTonet\\TelescopeMcp\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "LucianoTonet\\TelescopeMcp\\TelescopeMcpServiceProvider"
+            ]
+        }
+    }
+} 
