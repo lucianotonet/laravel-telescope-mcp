@@ -122,7 +122,18 @@ class EventsTool extends AbstractTool
                 if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
                     $createdAt = $entry->created_at->format('Y-m-d H:i:s');
                 } elseif (is_string($entry->created_at)) {
-                    $createdAt = $entry->created_at;
+                    try {
+                        if (trim($entry->created_at) !== '') {
+                            $dateTime = new \DateTime($entry->created_at);
+                            $createdAt = $dateTime->format('Y-m-d H:i:s');
+                        }
+                    } catch (\Exception $e) {
+                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in EventsTool::listEvents', [
+                            'date_string' => $entry->created_at,
+                            'entry_id' => $entry->id ?? 'N/A',
+                            'error' => $e->getMessage()
+                        ]);
+                    }
                 }
             }
             
@@ -184,7 +195,18 @@ class EventsTool extends AbstractTool
             if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
                 $createdAt = $entry->created_at->format('Y-m-d H:i:s');
             } elseif (is_string($entry->created_at)) {
-                $createdAt = $entry->created_at;
+                try {
+                    if (trim($entry->created_at) !== '') {
+                        $dateTime = new \DateTime($entry->created_at);
+                        $createdAt = $dateTime->format('Y-m-d H:i:s');
+                    }
+                } catch (\Exception $e) {
+                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in EventsTool::getEventDetails', [
+                        'date_string' => $entry->created_at,
+                        'entry_id' => $entry->id ?? 'N/A',
+                        'error' => $e->getMessage()
+                    ]);
+                }
             }
         }
         $output .= "Created At: {$createdAt}\n\n";

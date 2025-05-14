@@ -139,7 +139,22 @@ class LogsTool extends AbstractTool
                     return [
                         'id' => $entry->id,
                         'timestamp' => property_exists($entry, 'created_at') && $entry->created_at ? 
-                            (is_object($entry->created_at) ? $entry->created_at->format('Y-m-d H:i:s') : $entry->created_at) : null,
+                            (is_object($entry->created_at) ? $entry->created_at->format('Y-m-d H:i:s') : 
+                                (is_string($entry->created_at) ? 
+                                    (trim($entry->created_at) !== '' ? 
+                                        (function() use ($entry) {
+                                            try {
+                                                $dateTime = new \DateTime($entry->created_at);
+                                                return $dateTime->format('Y-m-d H:i:s');
+                                            } catch (\Exception $e) {
+                                                \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in LogsTool::listLogs (message case)', [
+                                                    'date_string' => $entry->created_at,
+                                                    'entry_id' => $entry->id ?? 'N/A',
+                                                    'error' => $e->getMessage()
+                                                ]);
+                                                return 'Unknown';
+                                            }
+                                        })() : 'Unknown') : 'Unknown')) : 'Unknown',
                         'level' => $content['level'] ?? 'info',
                         'message' => $content['message'],
                         'context' => $content['context'] ?? []
@@ -150,7 +165,22 @@ class LogsTool extends AbstractTool
                 return [
                     'id' => $entry->id,
                     'timestamp' => property_exists($entry, 'created_at') && $entry->created_at ? 
-                        (is_object($entry->created_at) ? $entry->created_at->format('Y-m-d H:i:s') : $entry->created_at) : null,
+                        (is_object($entry->created_at) ? $entry->created_at->format('Y-m-d H:i:s') : 
+                            (is_string($entry->created_at) ? 
+                                (trim($entry->created_at) !== '' ? 
+                                    (function() use ($entry) {
+                                        try {
+                                            $dateTime = new \DateTime($entry->created_at);
+                                            return $dateTime->format('Y-m-d H:i:s');
+                                        } catch (\Exception $e) {
+                                            \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in LogsTool::listLogs (fallback case)', [
+                                                'date_string' => $entry->created_at,
+                                                'entry_id' => $entry->id ?? 'N/A',
+                                                'error' => $e->getMessage()
+                                            ]);
+                                            return 'Unknown';
+                                        }
+                                    })() : 'Unknown') : 'Unknown')) : 'Unknown',
                     'level' => $content['level'] ?? 'info',
                     'message' => json_encode($content, JSON_PRETTY_PRINT),
                     'context' => []
@@ -208,7 +238,22 @@ class LogsTool extends AbstractTool
         $details = [
             'id' => $entry->id,
             'timestamp' => property_exists($entry, 'created_at') && $entry->created_at ? 
-                (is_object($entry->created_at) ? $entry->created_at->format('Y-m-d H:i:s') : $entry->created_at) : 'Unknown',
+                (is_object($entry->created_at) ? $entry->created_at->format('Y-m-d H:i:s') : 
+                    (is_string($entry->created_at) ? 
+                        (trim($entry->created_at) !== '' ? 
+                            (function() use ($entry) {
+                                try {
+                                    $dateTime = new \DateTime($entry->created_at);
+                                    return $dateTime->format('Y-m-d H:i:s');
+                                } catch (\Exception $e) {
+                                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in LogsTool::getLogDetails', [
+                                        'date_string' => $entry->created_at,
+                                        'entry_id' => $entry->id ?? 'N/A',
+                                        'error' => $e->getMessage()
+                                    ]);
+                                    return 'Unknown';
+                                }
+                            })() : 'Unknown') : 'Unknown')) : 'Unknown',
             'level' => $content['level'] ?? 'info',
             'message' => $content['message'] ?? json_encode($content),
             'context' => $content['context'] ?? []

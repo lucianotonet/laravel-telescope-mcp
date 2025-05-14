@@ -133,7 +133,18 @@ class DumpsTool extends AbstractTool
                 if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
                     $createdAt = $entry->created_at->format('Y-m-d H:i:s');
                 } elseif (is_string($entry->created_at)) {
-                    $createdAt = $entry->created_at;
+                    try {
+                        if (trim($entry->created_at) !== '') {
+                            $dateTime = new \DateTime($entry->created_at);
+                            $createdAt = $dateTime->format('Y-m-d H:i:s');
+                        }
+                    } catch (\Exception $e) {
+                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in DumpsTool::listDumps', [
+                            'date_string' => $entry->created_at,
+                            'entry_id' => $entry->id ?? 'N/A',
+                            'error' => $e->getMessage()
+                        ]);
+                    }
                 }
             }
 
@@ -185,5 +196,45 @@ class DumpsTool extends AbstractTool
         // Implemente a lógica para obter detalhes de um dump específico com base no ID
         // Isso pode envolver buscar o dump no repositório ou em outra fonte de dados
         // Retorne um array com os detalhes do dump
+
+        // Exemplo de como obter a entrada e tratar created_at (a ser adaptado):
+        /*
+        Logger::info($this->getName() . ' getting details', ['id' => $id]);
+        $entry = $this->getEntryDetails(EntryType::DUMP, $id);
+
+        if (!$entry) {
+            return $this->formatError("Dump não encontrado: {$id}");
+        }
+
+        $content = is_array($entry->content) ? $entry->content : [];
+        $createdAt = 'Unknown';
+        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
+            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
+                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
+            } elseif (is_string($entry->created_at)) {
+                try {
+                    if (trim($entry->created_at) !== '') {
+                        $dateTime = new \DateTime($entry->created_at);
+                        $createdAt = $dateTime->format('Y-m-d H:i:s');
+                    }
+                } catch (\Exception $e) {
+                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in DumpsTool::getDumpDetails', [
+                        'date_string' => $entry->created_at,
+                        'entry_id' => $entry->id ?? 'N/A',
+                        'error' => $e->getMessage()
+                    ]);
+                }
+            }
+        }
+
+        $output = "Dump Details:\n\n";
+        $output .= "ID: {$entry->id}\n";
+        $output .= "Created At: {$createdAt}\n";
+        // Adicionar outros detalhes do dump
+        $output .= "Content: " . json_encode($content, JSON_PRETTY_PRINT) . "\n";
+
+        return $this->formatResponse($output);
+        */
+        return $this->formatError("getDumpDetails not fully implemented yet.");
     }
 } 
