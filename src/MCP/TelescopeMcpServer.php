@@ -6,6 +6,23 @@ use Illuminate\Support\Collection;
 use Laravel\Telescope\Contracts\EntriesRepository;
 use LucianoTonet\TelescopeMcp\MCP\Tools\RequestsTool;
 use LucianoTonet\TelescopeMcp\MCP\Tools\LogsTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\BatchesTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\CacheTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\CommandsTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\DumpsTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\EventsTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\ExceptionsTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\GatesTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\HttpClientTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\JobsTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\MailTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\ModelsTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\NotificationsTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\PruneTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\QueriesTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\RedisTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\ScheduleTool;
+use LucianoTonet\TelescopeMcp\MCP\Tools\ViewsTool;
 
 class TelescopeMcpServer
 {
@@ -17,11 +34,30 @@ class TelescopeMcpServer
         $this->entriesRepository = $entriesRepository;
         $this->tools = new Collection();
         
-        // Registrar a ferramenta de requests
+        // Registrar ferramentas existentes
         $this->registerTool(new RequestsTool($entriesRepository));
-        
-        // Registrar a ferramenta de logs
         $this->registerTool(new LogsTool($entriesRepository));
+
+        // Registrar novas ferramentas
+        $this->registerTool(new BatchesTool($entriesRepository));
+        $this->registerTool(new CacheTool($entriesRepository));
+        $this->registerTool(new CommandsTool($entriesRepository));
+        $this->registerTool(new DumpsTool($entriesRepository));
+        $this->registerTool(new EventsTool($entriesRepository));
+        $this->registerTool(new ExceptionsTool($entriesRepository));
+        $this->registerTool(new GatesTool($entriesRepository));
+        $this->registerTool(new HttpClientTool($entriesRepository));
+        $this->registerTool(new JobsTool($entriesRepository));
+        $this->registerTool(new MailTool($entriesRepository));
+        $this->registerTool(new ModelsTool($entriesRepository));
+        $this->registerTool(new NotificationsTool($entriesRepository));
+        $this->registerTool(new QueriesTool($entriesRepository));
+        $this->registerTool(new RedisTool($entriesRepository));
+        $this->registerTool(new ScheduleTool($entriesRepository));
+        $this->registerTool(new ViewsTool($entriesRepository));
+
+        // Registrar PruneTool (não precisa de $entriesRepository no construtor)
+        $this->registerTool(new PruneTool());
     }
     
     public function registerTool($tool)
