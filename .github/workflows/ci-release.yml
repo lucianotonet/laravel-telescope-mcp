@@ -1,0 +1,150 @@
+name: CI & Release
+
+on:
+  push:
+    branches: [ "main", "develop" ] # Adjust to your main development branches
+    tags:
+      - \'v*.*.*\' # Push events to matching v*, i.e. v1.0, v20.15.10
+  pull_request:
+    branches: [ "main", "develop" ] # Adjust to your main development branches
+
+jobs:
+  test:
+    name: Run Tests (PHP ${{ matrix.php-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php-version: [\'8.1\', \'8.2\', \'8.3\']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite, bcmath, soap, intl, gd, exif, iconv
+          coverage: none # Set to xdebug or pcov if you want coverage reports
+
+      - name: Get Composer Cache Directory
+        id: composer-cache
+        run: |
+          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: ${{ runner.os }}-composer-${{ hashFiles(\'**/composer.lock\') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress --no-suggest
+
+      - name: Run tests
+        run: composer test
+
+  publish:
+    name: Publish to Packagist
+    needs: test # Ensure tests pass before publishing
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, \'refs/tags/v\') # Only run on tag pushes starting with \'v\'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: \'8.1\' # Use the minimum supported PHP version for publishing
+          coverage: none
+
+      - name: Get Composer Cache Directory
+        id: composer-cache-publish
+        run: |
+          echo "dir=$(composer config cache-files-dir)" >> $GITHUB_OUTPUT
+          
+      - name: Cache Composer dependencies
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.composer-cache-publish.outputs.dir }}
+          key: ${{ runner.os }}-composer-publish-${{ hashFiles(\'**/composer.lock\') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-publish-
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress --no-suggest --no-dev # No dev dependencies for release
+
+      # This is a common action, you might need to adjust based on your preference
+      # or use a more manual approach if needed.
+      # Ensure you have PACKAGIST_API_TOKEN secret in your GitHub repository settings.
+      - name: Publish to Packagist
+        uses: "packagist/action-github-release@v1.3.2" # Example action, verify or choose another
+        env:
+          PACKAGIST_REPO_TOKEN: ${{ secrets.PACKAGIST_API_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # GITHUB_TOKEN is automatically available
+        # You might need to configure the action further, e.g., specifying the package name if not auto-detected
+        # with:
+        #   tag: ${{ github.ref_name }}
+        #   version: ${{ github.ref_name }} # Assumes tag is like v1.0.0 and you want that as version
+        #   composer_json_path: composer.json
+
+# A more direct approach for Packagist if the above action is not suitable
+# or if you want to simply notify Packagist of a new version.
+# This requires `curl` and `jq` to be available on the runner.
+#      - name: Publish to Packagist (Manual Trigger)
+#        if: success() # Only if previous steps were successful
+#        run: |
+#          PACKAGE_NAME=$(jq -r .name composer.json)
+#          echo "Publishing $PACKAGE_NAME version ${{ github.ref_name }} to Packagist"
+#          curl -X POST \
+#               -H "Content-type:application/json" \
+#               "https://packagist.org/api/update-package?username=<YOUR_PACKAGIST_USERNAME>&apiToken=${{ secrets.PACKAGIST_API_TOKEN }}" \
+#               -d "{\"repository\":{\"url\":\"https://github.com/${{ github.repository }}\"}}"
+#        env:
+#          PACKAGIST_USERNAME: "your-packagist-username" # Store this as a secret or variable if preferred
+
+# Another option using a dedicated Packagist publish action:
+#      - name: Publish package to Packagist
+#        uses: "actions/packagist-publish@v1"
+#        with:
+#          token: "${{ secrets.PACKAGIST_API_TOKEN }}"
+#          # Optional: specify the path to your composer.json file
+#          # composer_json_path: "composer.json"
+#          # Optional: specify the tag to publish (defaults to the current tag)
+#          # tag_name: "${{ github.ref_name }}"
+
+# Choose ONE Packagist publishing method. The example `packagist/action-github-release` is often
+# used for creating a GitHub release and notifying Packagist.
+# If you only want to notify Packagist without creating a GitHub release via this action,
+# you might prefer a more direct `curl` command or a simpler Packagist-specific action.
+# For just updating Packagist, the `curl` example or `actions/packagist-publish@v1` might be more direct.
+# The `packagist/action-github-release@v1.3.2` assumes you want to create a GitHub release as well.
+# Let's simplify and use a more direct Packagist update for now.
+# I'll comment out the `packagist/action-github-release` and provide a simpler curl based one.
+
+      - name: Update Packagist
+        if: success()
+        env:
+          PACKAGIST_API_TOKEN: ${{ secrets.PACKAGIST_API_TOKEN }}
+          PACKAGIST_USER_NAME: "lucianotonet" # Replace with your Packagist username or use a secret
+          COMPOSER_FILE_PATH: "./composer.json" # Default path
+        run: |
+          sudo apt-get install -y curl jq
+          composer_name=$(jq -r \'.name\' "$COMPOSER_FILE_PATH")
+          echo "Notifying Packagist about new version for $composer_name..."
+          payload="{\"repository\":{\"url\":\"https://github.com/${GITHUB_REPOSITORY}\"}}"
+          response_code=$(curl -w "%{http_code}" -X POST \\
+            -H "Content-type:application/json" \\
+            "https://packagist.org/api/update-package?username=${PACKAGIST_USER_NAME}&apiToken=${PACKAGIST_API_TOKEN}" \\
+            -d "$payload" \\
+            -o response.txt)
+          cat response.txt
+          if [ "$response_code" -ne 202 ] && [ "$response_code" -ne 200 ]; then
+            echo "Error updating Packagist: HTTP $response_code"
+            exit 1
+          fi
+          echo "Packagist updated successfully for $composer_name." 

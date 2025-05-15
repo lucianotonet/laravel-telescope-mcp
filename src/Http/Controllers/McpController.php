@@ -10,8 +10,6 @@ use LucianoTonet\TelescopeMcp\Support\Logger;
 
 class McpController extends Controller
 {
-    const TOOL_PREFIX = 'mcp_Laravel_Telescope_MCP_';
-
     protected $server;
     
     public function __construct(TelescopeMcpServer $server)
@@ -19,17 +17,6 @@ class McpController extends Controller
         $this->server = $server;
     }
 
-    private function getFullToolName(string $toolName = null): ?string
-    {
-        if (!$toolName) {
-            return null;
-        }
-        if (strpos($toolName, self::TOOL_PREFIX) !== 0) {
-            return self::TOOL_PREFIX . $toolName;
-        }
-        return $toolName;
-    }
-    
     public function manifest(Request $request)
     {
         Logger::info('MCP request received', [
@@ -172,23 +159,22 @@ class McpController extends Controller
                     );
                 }
 
-                $fullToolName = $this->getFullToolName($shortToolName);
+                $toolName = $shortToolName;
                 Logger::info('Executing tool via JSON-RPC', [
-                    'tool_short_name' => $shortToolName,
-                    'tool_full_name' => $fullToolName,
+                    'tool_name' => $toolName,
                 ]);
                 
                 try {
-                    $result = $this->server->executeTool($fullToolName, (array) $arguments);
+                    $result = $this->server->executeTool($toolName, (array) $arguments);
                     return response()->json(JsonRpcResponse::mcpToolResponse($result, $id));
                 } catch (\Exception $e) {
-                    Logger::error('MCP tools/call: Tool execution error.', ['tool_full_name' => $fullToolName, 'tool_short_name' => $shortToolName, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+                    Logger::error('MCP tools/call: Tool execution error.', ['tool_name' => $toolName, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
                     
                     $errorMessage = $e->getMessage();
-                    if (strpos($errorMessage, 'Tool not found:') === 0) {
-                        // Use the short tool name as requested by the client for the error message
-                        $errorMessage = "Tool not found: {$shortToolName}";
-                    }
+                    // A mensagem de erro já virá com o nome curto da ferramenta de TelescopeMcpServer
+                    // if (strpos($errorMessage, 'Tool not found:') === 0) {
+                    //     $errorMessage = "Tool not found: {$toolName}";
+                    // }
 
                     return response()->json(
                         JsonRpcResponse::error(JsonRpcResponse::INTERNAL_ERROR, $errorMessage, null, $id),
@@ -196,8 +182,24 @@ class McpController extends Controller
                     );
                 }
             
+            case 'notifications/initialized':
+                // If it's a notification (no ID), do not return anything (HTTP 204 or 200 empty implicitly)
+                // If it has an ID (which it shouldn't for this method), treat as unknown.
+                if (is_null($id)) {
+                    Logger::info('MCP notification: Client initialized.', ['method_received' => $method]);
+                    // For notifications, the server should not return a JSON-RPC response.
+                    // Returning an empty HTTP response with status 204 is appropriate.
+                    return response(null, 204); 
+                }
+                // If it reached here with an ID, it will fall through to the default (method not found)
+
             default:
-                Logger::warning('MCP request: Method not found.', ['method_received' => $method]);
+                // If it's 'notifications/initialized' with an ID, or any other unknown method
+                if ($method === 'notifications/initialized' && !is_null($id)) {
+                     Logger::warning('MCP request: notifications/initialized received with an ID, treating as method not found.', ['method_received' => $method, 'id' => $id]);
+                } else {
+                    Logger::warning('MCP request: Method not found.', ['method_received' => $method, 'id' => $id]);
+                }
                 return response()->json(
                     JsonRpcResponse::error(JsonRpcResponse::METHOD_NOT_FOUND, "Method not found: {$method}", null, $id),
                     400
@@ -239,16 +241,14 @@ class McpController extends Controller
                 'params' => $params
             ]);
             
-            // No método executeTool, o $tool já é o nome curto da URL.
-            // Precisamos convertê-lo para o nome completo.
-            $fullToolName = $this->getFullToolName($tool);
+            // $tool já é o nome curto da URL.
+            $toolName = $tool;
             Logger::info('Direct tool execution via /tools/{tool} route', [
-                'tool_short_name' => $tool,
-                'tool_full_name' => $fullToolName,
+                'tool_name' => $toolName,
                 'params' => $params
             ]);
 
-            $result = $this->server->executeTool($fullToolName, $params);
+            $result = $this->server->executeTool($toolName, $params);
             
             // Formatar resposta no padrão esperado pelo MCP
             $response = [
@@ -261,7 +261,7 @@ class McpController extends Controller
             ];
             
             Logger::info('Tool execution successful (direct route)', [
-                'tool' => $fullToolName,
+                'tool' => $toolName,
                 'response' => $response
             ]);
             
@@ -271,7 +271,7 @@ class McpController extends Controller
         } catch (\Exception $e) {
             Logger::error('Tool execution failed (direct route)', [
                 'tool' => $tool, // Log o nome curto aqui, pois é o da URL
-                'full_tool_name_attempted' => $this->getFullToolName($tool),
+                'full_tool_name_attempted' => $tool, // Agora $tool já é o nome correto
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'request' => [
@@ -377,7 +377,6 @@ class McpController extends Controller
 
         $jsonrpc = $decoded['jsonrpc'] ?? null;
         $id = $decoded['id'] ?? null;
-        // $method = $decoded['method'] ?? null; // Em executeToolCall, o método da rota é o que importa.
         $params = $decoded['params'] ?? [];
 
         if ($jsonrpc !== '2.0') {
@@ -415,17 +414,16 @@ class McpController extends Controller
             );
         }
 
-        $fullToolName = $this->getFullToolName($shortToolName);
+        $toolName = $shortToolName;
         Logger::info('Executing tool via executeToolCall', [
-            'tool_short_name' => $shortToolName,
-            'tool_full_name' => $fullToolName,
+            'tool_name' => $toolName,
         ]);
 
         try {
-            $result = $this->server->executeTool($fullToolName, (array) $arguments);
+            $result = $this->server->executeTool($toolName, (array) $arguments);
             return response()->json(JsonRpcResponse::mcpToolResponse($result, $id));
         } catch (\Exception $e) {
-            Logger::error('executeToolCall: Tool execution error.', ['tool' => $fullToolName, 'error' => $e->getMessage()]);
+            Logger::error('executeToolCall: Tool execution error.', ['tool' => $toolName, 'error' => $e->getMessage()]);
             return response()->json(
                 JsonRpcResponse::error(JsonRpcResponse::INTERNAL_ERROR, $e->getMessage(), null, $id),
                 500

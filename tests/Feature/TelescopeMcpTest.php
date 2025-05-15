@@ -60,7 +60,7 @@ class TelescopeMcpTest extends TestCase
             'jsonrpc' => '2.0',
             'method' => 'tools/call',
             'params' => [
-                'name' => 'mcp_Laravel_Telescope_MCP_logs',
+                'name' => 'telescope_mcp.logs',
                 'arguments' => [
                     'limit' => 10
                 ]
@@ -101,7 +101,7 @@ class TelescopeMcpTest extends TestCase
             'jsonrpc' => '2.0',
             'method' => 'tools/call',
             'params' => [
-                'name' => 'mcp_Laravel_Telescope_MCP_requests',
+                'name' => 'telescope_mcp.requests',
                 'arguments' => [
                     'limit' => 10
                 ]

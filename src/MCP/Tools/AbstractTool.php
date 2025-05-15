@@ -38,7 +38,7 @@ abstract class AbstractTool
      */
     public function getName(): string
     {
-        return 'mcp_Laravel_Telescope_MCP_' . $this->getShortName();
+        return $this->getShortName();
     }
     
     /**

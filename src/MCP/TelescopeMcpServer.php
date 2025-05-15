@@ -33,13 +33,6 @@ class TelescopeMcpServer
     protected $tools;
     protected $manifest;
     
-    /**
-     * Prefixo para nomes de ferramenta
-     * 
-     * @var string
-     */
-    protected $toolPrefix = '';
-
     public function __construct(EntriesRepository $entriesRepository)
     {
         $this->entriesRepository = $entriesRepository;
@@ -81,7 +74,7 @@ class TelescopeMcpServer
      */
     public function registerTool($tool)
     {
-        // Usar o nome completo fornecido pela ferramenta
+        // Usar o nome retornado por getName() (agora o nome curto)
         $toolName = $tool->getName();
         
         // Adicionar à coleção
@@ -96,35 +89,8 @@ class TelescopeMcpServer
      */
     public function hasTool($toolName)
     {
-        // Tentar buscar pelo nome exato
-        if ($this->tools->has($toolName)) {
-            return true;
-        }
-        
-        // Se não encontrou pelo nome exato, tentar buscar pela ferramenta
-        foreach ($this->tools as $tool) {
-            if ($tool->getName() === $toolName) {
-                return true;
-            }
-        }
-        
-        return false;
-    }
-    
-    /**
-     * Obtém o nome curto de uma ferramenta
-     * 
-     * @param string $toolName
-     * @return string
-     */
-    protected function getShortToolName($toolName)
-    {
-        // Remover o prefixo "mcp_telescope_" se existir
-        if (strpos($toolName, 'mcp_telescope_') === 0) {
-            return substr($toolName, strlen('mcp_telescope_'));
-        }
-        
-        return $toolName;
+        // Buscar pelo nome curto
+        return $this->tools->has($toolName);
     }
     
     /**
@@ -135,19 +101,8 @@ class TelescopeMcpServer
      */
     protected function getTool($toolName)
     {
-        // Tentar buscar pelo nome exato
-        if ($this->tools->has($toolName)) {
-            return $this->tools->get($toolName);
-        }
-        
-        // Se não encontrou pelo nome exato, tentar buscar pela ferramenta
-        foreach ($this->tools as $tool) {
-            if ($tool->getName() === $toolName) {
-                return $tool;
-            }
-        }
-        
-        return null;
+        // Buscar pelo nome curto
+        return $this->tools->get($toolName);
     }
     
     /**
@@ -159,6 +114,7 @@ class TelescopeMcpServer
         $toolsFormatted = (object)[];
         foreach ($this->tools as $name => $tool) {
             $schema = $tool->getSchema();
+            // O 'name' no schema já virá de $tool->getName(), que é o nome curto.
             $toolsFormatted->{$schema['name']} = [
                 'name' => $schema['name'],
                 'description' => $schema['description'],
@@ -214,18 +170,18 @@ class TelescopeMcpServer
     public function executeTool(string $toolName, array $arguments = []): array
     {
         Logger::info('Executing tool', [
-            'tool' => $toolName,
+            'tool' => $toolName, // toolName já é o nome curto
             'arguments' => $arguments
         ]);
         
         try {
-            // Verificar se a ferramenta existe
-            if (!isset($this->tools[$toolName])) {
+            // Verificar se a ferramenta existe usando o nome curto
+            if (!$this->hasTool($toolName)) {
                 throw new \Exception("Tool not found: {$toolName}");
             }
             
             // Executar a ferramenta
-            $tool = $this->tools[$toolName];
+            $tool = $this->getTool($toolName);
             $result = $tool->execute($arguments);
             
             Logger::info('Tool execution successful', [
