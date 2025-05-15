@@ -83,7 +83,7 @@ jobs:
           COMPOSER_FILE_PATH: "./composer.json" # Default path
         run: |
           sudo apt-get install -y curl jq
-          composer_name=$(jq -r \'.name\' "$COMPOSER_FILE_PATH")
+          composer_name=$(jq -r '.name' "$COMPOSER_FILE_PATH")
           echo "Notifying Packagist about new version for $composer_name..."
           payload="{\"repository\":{\"url\":\"https://github.com/${GITHUB_REPOSITORY}\"}}"
           response_code=$(curl -w "%{http_code}" -X POST \\
