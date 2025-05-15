@@ -4,61 +4,62 @@ namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 
+/**
+ * Tool for interacting with view renderings recorded by Telescope
+ */
 class ViewsTool extends AbstractTool
 {
+    /**
+     * @var EntriesRepository
+     */
     protected $entriesRepository;
 
+    /**
+     * ViewsTool constructor
+     * 
+     * @param EntriesRepository $entriesRepository The Telescope entries repository
+     */
     public function __construct(EntriesRepository $entriesRepository)
     {
         $this->entriesRepository = $entriesRepository;
     }
 
     /**
-     * Retorna o nome da ferramenta
-     *
+     * Returns the tool's short name
+     * 
      * @return string
      */
-    public function getName()
-    {
-        return $this->getShortName();
-    }
-
-    /**
-     * Retorna o nome curto da ferramenta
-     */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'views';
     }
 
     /**
-     * Retorna o esquema da ferramenta
+     * Returns the tool's schema
+     * 
+     * @return array
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
-            'description' => 'Lista e analisa renderizações de views registradas pelo Telescope.',
+            'description' => 'Lists and analyzes view renderings recorded by Telescope.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'id' => [
                         'type' => 'string',
-                        'description' => 'ID da renderização de view específica para ver detalhes'
+                        'description' => 'ID of the specific view rendering to view details'
                     ],
                     'limit' => [
                         'type' => 'integer',
-                        'description' => 'Número máximo de renderizações de view a retornar',
+                        'description' => 'Maximum number of view renderings to return',
                         'default' => 50
-                    ],
-                    'name' => [
-                        'type' => 'string',
-                        'description' => 'Filtrar por nome da view'
-                    ],
-                    // TODO: Adicionar outros filtros específicos para views se necessário (ex: dados)
+                    ]
                 ],
                 'required' => []
             ],
@@ -80,17 +81,30 @@ class ViewsTool extends AbstractTool
                 'required' => ['content']
             ],
             'examples' => [
-                // Usage examples will be added in the future
+                [
+                    'description' => 'List last 10 view renderings',
+                    'params' => ['limit' => 10]
+                ],
+                [
+                    'description' => 'Get details of a specific view rendering',
+                    'params' => ['id' => '12345']
+                ]
             ]
         ];
     }
 
-    public function execute($params)
+    /**
+     * Executes the tool with the given parameters
+     * 
+     * @param array $params Tool parameters
+     * @return array Response in MCP format
+     */
+    public function execute(array $params): array
     {
         Logger::info($this->getName() . ' execute method called', ['params' => $params]);
 
         try {
-            // Verificar se foi solicitado detalhes de uma renderização de view específica
+            // Check if details of a specific view rendering were requested
             if ($this->hasId($params)) {
                 return $this->getViewDetails($params['id']);
             }
@@ -107,86 +121,71 @@ class ViewsTool extends AbstractTool
     }
 
     /**
-     * Lista as renderizações de view registradas pelo Telescope
+     * Lists view renderings recorded by Telescope
+     * 
+     * @param array $params Query parameters
+     * @return array Response in MCP format
      */
-    protected function listViews($params)
+    protected function listViews(array $params): array
     {
-        // Definir limite para a consulta
+        // Set query limit
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
 
-        // Configurar opções
+        // Configure options
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Adicionar filtros se especificados
-        if (!empty($params['name'])) {
-            $options->tag($params['name']);
-        }
-
-        // Buscar entradas usando o repositório
+        // Fetch entries using the repository
         $entries = $this->entriesRepository->get(EntryType::VIEW, $options);
 
         if (empty($entries)) {
-            return $this->formatResponse("Nenhuma renderização de view encontrada.");
+            return $this->formatResponse("No view renderings found.");
         }
 
-        $viewRenderings = [];
+        $views = [];
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $createdAt = DateFormatter::format($entry->created_at);
 
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in ViewsTool::listViews', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            }
+            // Extract relevant information from the view rendering
+            $name = $content['name'] ?? 'Unknown';
+            $path = $content['path'] ?? 'Unknown';
+            $data = $content['data'] ?? [];
 
-            $viewRenderings[] = [
+            $views[] = [
                 'id' => $entry->id,
-                'name' => $content['name'] ?? 'Unknown',
-                'path' => $content['path'] ?? 'Unknown',
-                'duration' => $content['render_time'] ?? 0, // Tempo de renderização
+                'name' => $name,
+                'path' => $path,
+                'data_count' => count($data),
                 'created_at' => $createdAt
             ];
         }
 
-        // Formatação tabular para facilitar a leitura
+        // Tabular formatting for better readability
         $table = "View Renderings:\n\n";
-        $table .= sprintf("%-5s %-40s %-40s %-15s %-20s\n", "ID", "Name", "Path", "Render Time (ms)", "Created At");
+        $table .= sprintf("%-5s %-30s %-50s %-10s %-20s\n", 
+            "ID", "Name", "Path", "Data", "Created At");
         $table .= str_repeat("-", 120) . "\n";
 
-        foreach ($viewRenderings as $view) {
-             // Truncar campos longos
+        foreach ($views as $view) {
+            // Truncate name and path if too long
             $name = $view['name'];
-            if (strlen($name) > 40) {
-                $name = substr($name, 0, 37) . "...";
+            if (strlen($name) > 30) {
+                $name = substr($name, 0, 27) . "...";
             }
 
             $path = $view['path'];
-            if (strlen($path) > 40) {
-                $path = "..." . substr($path, -37);
+            if (strlen($path) > 50) {
+                $path = substr($path, 0, 47) . "...";
             }
 
             $table .= sprintf(
-                "%-5s %-40s %-40s %-15s %-20s\n",
+                "%-5s %-30s %-50s %-10s %-20s\n",
                 $view['id'],
                 $name,
                 $path,
-                number_format($view['duration'], 2),
+                $view['data_count'],
                 $view['created_at']
             );
         }
@@ -195,52 +194,40 @@ class ViewsTool extends AbstractTool
     }
 
     /**
-     * Obtém detalhes de uma renderização de view específica
+     * Gets details of a specific view rendering
+     * 
+     * @param string $id The view rendering ID
+     * @return array Response in MCP format
      */
-    protected function getViewDetails($id)
+    protected function getViewDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
 
-        // Buscar a entrada específica
+        // Fetch the specific entry
         $entry = $this->getEntryDetails(EntryType::VIEW, $id);
 
         if (!$entry) {
-            return $this->formatError("Renderização de view não encontrada: {$id}");
+            return $this->formatError("View rendering not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
 
-        // Formatação detalhada da renderização de view
+        // Detailed formatting of the view rendering
         $output = "View Rendering Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Name: " . ($content['name'] ?? 'Unknown') . "\n";
         $output .= "Path: " . ($content['path'] ?? 'Unknown') . "\n";
-        $output .= "Render Time: " . (isset($content['render_time']) ? number_format($content['render_time'], 2) . "ms" : 'Unknown') . "\n";
 
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
-                    }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in ViewsTool::getViewDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-        }
+        $createdAt = DateFormatter::format($entry->created_at);
         $output .= "Created At: {$createdAt}\n\n";
 
-        // Dados passados para a view
-        if (isset($content['data']) && !empty($content['data'])) {
-            $output .= "Data:\n" . json_encode($content['data'], JSON_PRETTY_PRINT) . "\n";
+        // View data
+        if (isset($content['data']) && is_array($content['data'])) {
+            $output .= "View Data:\n";
+            foreach ($content['data'] as $key => $value) {
+                $output .= "- {$key}: " . json_encode($value, JSON_PRETTY_PRINT) . "\n";
+            }
+            $output .= "\n";
         }
 
         return $this->formatResponse($output);

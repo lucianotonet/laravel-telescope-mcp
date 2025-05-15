@@ -12,7 +12,7 @@ class JobsTool extends AbstractTool
     /**
      * Retorna o nome curto da ferramenta
      */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'jobs';
     }
@@ -20,7 +20,7 @@ class JobsTool extends AbstractTool
     /**
      * Retorna o esquema da ferramenta
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
@@ -72,7 +72,7 @@ class JobsTool extends AbstractTool
     /**
      * Executa a ferramenta com os parâmetros fornecidos
      */
-    public function execute($params)
+    public function execute(array $params): array
     {
         try {
             Logger::info($this->getName() . ' execute method called', ['params' => $params]);
@@ -96,7 +96,7 @@ class JobsTool extends AbstractTool
     /**
      * Lista os jobs registrados pelo Telescope
      */
-    protected function listJobs($params)
+    protected function listJobs(array $params): array
     {
         // Definir limite para a consulta
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
@@ -184,7 +184,7 @@ class JobsTool extends AbstractTool
     /**
      * Obtém detalhes de um job específico
      */
-    protected function getJobDetails($id)
+    protected function getJobDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
         

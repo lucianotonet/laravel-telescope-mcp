@@ -4,63 +4,70 @@ namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 
+/**
+ * Tool for interacting with notifications recorded by Telescope
+ */
 class NotificationsTool extends AbstractTool
 {
+    /**
+     * @var EntriesRepository
+     */
     protected $entriesRepository;
 
+    /**
+     * NotificationsTool constructor
+     * 
+     * @param EntriesRepository $entriesRepository The Telescope entries repository
+     */
     public function __construct(EntriesRepository $entriesRepository)
     {
         $this->entriesRepository = $entriesRepository;
     }
 
     /**
-     * Retorna o nome da ferramenta
-     *
+     * Returns the tool's short name
+     * 
      * @return string
      */
-    public function getName()
-    {
-        return $this->getShortName();
-    }
-
-    /**
-     * Retorna o nome curto da ferramenta
-     */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'notifications';
     }
 
     /**
-     * Retorna o esquema da ferramenta
+     * Returns the tool's schema
+     * 
+     * @return array
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
-            'description' => 'Lista e analisa notificações enviadas e registradas pelo Telescope.',
+            'description' => 'Lists and analyzes notifications recorded by Telescope.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'id' => [
                         'type' => 'string',
-                        'description' => 'ID da notificação específica para ver detalhes'
+                        'description' => 'ID of the specific notification to view details'
                     ],
                     'limit' => [
                         'type' => 'integer',
-                        'description' => 'Número máximo de notificações a retornar',
+                        'description' => 'Maximum number of notifications to return',
                         'default' => 50
                     ],
-                    'type' => [
+                    'channel' => [
                         'type' => 'string',
-                        'description' => 'Filtrar por tipo de notificação (mail, database, broadcast, etc.)'
+                        'description' => 'Filter by notification channel (mail, database, etc.)'
                     ],
-                    'notifiable' => [
+                    'status' => [
                         'type' => 'string',
-                        'description' => 'Filtrar por destinatário da notificação (classe ou identificador)'
+                        'description' => 'Filter by notification status (sent, failed)',
+                        'enum' => ['sent', 'failed']
                     ]
                 ],
                 'required' => []
@@ -83,17 +90,34 @@ class NotificationsTool extends AbstractTool
                 'required' => ['content']
             ],
             'examples' => [
-                // Usage examples will be added in the future
+                [
+                    'description' => 'List last 10 notifications',
+                    'params' => ['limit' => 10]
+                ],
+                [
+                    'description' => 'Get details of a specific notification',
+                    'params' => ['id' => '12345']
+                ],
+                [
+                    'description' => 'List failed notifications',
+                    'params' => ['status' => 'failed']
+                ]
             ]
         ];
     }
 
-    public function execute($params)
+    /**
+     * Executes the tool with the given parameters
+     * 
+     * @param array $params Tool parameters
+     * @return array Response in MCP format
+     */
+    public function execute(array $params): array
     {
         Logger::info($this->getName() . ' execute method called', ['params' => $params]);
 
         try {
-            // Verificar se foi solicitado detalhes de uma notificação específica
+            // Check if details of a specific notification were requested
             if ($this->hasId($params)) {
                 return $this->getNotificationDetails($params['id']);
             }
@@ -110,92 +134,86 @@ class NotificationsTool extends AbstractTool
     }
 
     /**
-     * Lista as notificações registradas pelo Telescope
+     * Lists notifications recorded by Telescope
+     * 
+     * @param array $params Query parameters
+     * @return array Response in MCP format
      */
-    protected function listNotifications($params)
+    protected function listNotifications(array $params): array
     {
-        // Definir limite para a consulta
+        // Set query limit
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
 
-        // Configurar opções
+        // Configure options
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Adicionar filtros se especificados
-        if (!empty($params['type'])) {
-            $options->tag($params['type']);
+        // Add filters if specified
+        if (!empty($params['channel'])) {
+            $options->tag('channel:' . $params['channel']);
         }
-        if (!empty($params['notifiable'])) {
-            $options->tag($params['notifiable']);
+        if (!empty($params['status'])) {
+            $options->tag('status:' . $params['status']);
         }
 
-        // Buscar entradas usando o repositório
+        // Fetch entries using the repository
         $entries = $this->entriesRepository->get(EntryType::NOTIFICATION, $options);
 
         if (empty($entries)) {
-            return $this->formatResponse("Nenhuma notificação encontrada.");
+            return $this->formatResponse("No notifications found.");
         }
 
         $notifications = [];
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $createdAt = DateFormatter::format($entry->created_at);
 
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in NotificationsTool::listNotifications', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            }
+            // Extract relevant information from the notification
+            $channel = $content['channel'] ?? 'Unknown';
+            $notifiable = $content['notifiable'] ?? 'Unknown';
+            $notification = $content['notification'] ?? 'Unknown';
+            $queued = isset($content['queued']) && $content['queued'] ? 'Yes' : 'No';
+            $status = isset($content['response']) ? 'Sent' : (isset($content['exception']) ? 'Failed' : 'Unknown');
 
             $notifications[] = [
                 'id' => $entry->id,
-                'type' => $content['type'] ?? 'Unknown',
-                'notifiable' => $content['notifiable'] ?? 'Unknown',
-                'notification' => $content['notification'] ?? 'Unknown', // Classe da notificação
-                'channel' => $content['channel'] ?? 'Unknown', // Canal (mail, database, etc.)
+                'channel' => $channel,
+                'notifiable' => $notifiable,
+                'notification' => $notification,
+                'queued' => $queued,
+                'status' => $status,
                 'created_at' => $createdAt
             ];
         }
 
-        // Formatação tabular para facilitar a leitura
+        // Tabular formatting for better readability
         $table = "Notifications:\n\n";
-        $table .= sprintf("%-5s %-20s %-30s %-30s %-15s %-20s\n", "ID", "Type", "Notifiable", "Notification", "Channel", "Created At");
-        $table .= str_repeat("-", 130) . "\n";
+        $table .= sprintf("%-5s %-15s %-30s %-30s %-8s %-8s %-20s\n", 
+            "ID", "Channel", "Notifiable", "Notification", "Queued", "Status", "Created At");
+        $table .= str_repeat("-", 120) . "\n";
 
-        foreach ($notifications as $notification) {
-             // Truncar campos longos
-            $notifiable = $notification['notifiable'];
+        foreach ($notifications as $notif) {
+            // Truncate fields if too long
+            $notifiable = $notif['notifiable'];
             if (strlen($notifiable) > 30) {
                 $notifiable = substr($notifiable, 0, 27) . "...";
             }
 
-            $notificationClass = $notification['notification'];
-            if (strlen($notificationClass) > 30) {
-                $notificationClass = substr($notificationClass, 0, 27) . "...";
+            $notification = $notif['notification'];
+            if (strlen($notification) > 30) {
+                $notification = substr($notification, 0, 27) . "...";
             }
 
             $table .= sprintf(
-                "%-5s %-20s %-30s %-30s %-15s %-20s\n",
-                $notification['id'],
-                $notification['type'],
+                "%-5s %-15s %-30s %-30s %-8s %-8s %-20s\n",
+                $notif['id'],
+                $notif['channel'],
                 $notifiable,
-                $notificationClass,
-                $notification['channel'],
-                $notification['created_at']
+                $notification,
+                $notif['queued'],
+                $notif['status'],
+                $notif['created_at']
             );
         }
 
@@ -203,56 +221,58 @@ class NotificationsTool extends AbstractTool
     }
 
     /**
-     * Obtém detalhes de uma notificação específica
+     * Gets details of a specific notification
+     * 
+     * @param string $id The notification ID
+     * @return array Response in MCP format
      */
-    protected function getNotificationDetails($id)
+    protected function getNotificationDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
 
-        // Buscar a entrada específica
+        // Fetch the specific entry
         $entry = $this->getEntryDetails(EntryType::NOTIFICATION, $id);
 
         if (!$entry) {
-            return $this->formatError("Notificação não encontrada: {$id}");
+            return $this->formatError("Notification not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
 
-        // Formatação detalhada da notificação
+        // Detailed formatting of the notification
         $output = "Notification Details:\n\n";
         $output .= "ID: {$entry->id}\n";
-        $output .= "Type: " . ($content['type'] ?? 'Unknown') . "\n";
-        $output .= "Notification Class: " . ($content['notification'] ?? 'Unknown') . "\n";
         $output .= "Channel: " . ($content['channel'] ?? 'Unknown') . "\n";
         $output .= "Notifiable: " . ($content['notifiable'] ?? 'Unknown') . "\n";
+        $output .= "Notification: " . ($content['notification'] ?? 'Unknown') . "\n";
+        $output .= "Queued: " . (isset($content['queued']) && $content['queued'] ? 'Yes' : 'No') . "\n";
+        $output .= "Status: " . (isset($content['response']) ? 'Sent' : (isset($content['exception']) ? 'Failed' : 'Unknown')) . "\n";
 
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
-                    }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in NotificationsTool::getNotificationDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-        }
+        $createdAt = DateFormatter::format($entry->created_at);
         $output .= "Created At: {$createdAt}\n\n";
 
-        // Dados da notificação
-        if (isset($content['data']) && !empty($content['data'])) {
-            $output .= "Data:\n" . json_encode($content['data'], JSON_PRETTY_PRINT) . "\n";
+        // Response (if available)
+        if (!empty($content['response'])) {
+            $output .= "Response:\n" . json_encode($content['response'], JSON_PRETTY_PRINT) . "\n\n";
         }
 
-        // TODO: Adicionar outros detalhes relevantes se existirem
+        // Exception (if failed)
+        if (!empty($content['exception'])) {
+            $output .= "Exception:\n";
+            $output .= "Message: " . ($content['exception']['message'] ?? 'Unknown') . "\n";
+            if (!empty($content['exception']['trace'])) {
+                $output .= "Stack Trace:\n" . implode("\n", array_slice($content['exception']['trace'], 0, 5)) . "\n";
+                if (count($content['exception']['trace']) > 5) {
+                    $output .= "... (truncated)\n";
+                }
+            }
+            $output .= "\n";
+        }
+
+        // Data
+        if (!empty($content['data'])) {
+            $output .= "Data:\n" . json_encode($content['data'], JSON_PRETTY_PRINT) . "\n";
+        }
 
         return $this->formatResponse($output);
     }

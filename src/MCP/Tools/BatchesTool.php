@@ -4,40 +4,71 @@ namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 
+/**
+ * Tool for interacting with batch operations recorded by Telescope
+ */
 class BatchesTool extends AbstractTool
 {
     /**
-     * Retorna o nome curto da ferramenta
+     * @var EntriesRepository
      */
-    public function getShortName()
+    protected $entriesRepository;
+
+    /**
+     * BatchesTool constructor
+     * 
+     * @param EntriesRepository $entriesRepository The Telescope entries repository
+     */
+    public function __construct(EntriesRepository $entriesRepository)
+    {
+        $this->entriesRepository = $entriesRepository;
+    }
+
+    /**
+     * Returns the tool's short name
+     * 
+     * @return string
+     */
+    public function getShortName(): string
     {
         return 'batches';
     }
 
     /**
-     * Retorna o esquema da ferramenta
+     * Returns the tool's schema
+     * 
+     * @return array
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
-            'description' => 'Lista e analisa batches (lotes de jobs) registrados pelo Telescope.',
+            'description' => 'Lists and analyzes batch operations recorded by Telescope.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'id' => [
                         'type' => 'string',
-                        'description' => 'ID do batch específico para ver detalhes'
+                        'description' => 'ID of the specific batch operation to view details'
                     ],
                     'limit' => [
                         'type' => 'integer',
-                        'description' => 'Número máximo de batches a retornar',
+                        'description' => 'Maximum number of batch operations to return',
                         'default' => 50
                     ],
-                    // TODO: Adicionar filtros específicos para batches se necessário (ex: status, total jobs)
+                    'status' => [
+                        'type' => 'string',
+                        'description' => 'Filter by batch status (pending, processing, finished, failed)',
+                        'enum' => ['pending', 'processing', 'finished', 'failed']
+                    ],
+                    'name' => [
+                        'type' => 'string',
+                        'description' => 'Filter by batch name'
+                    ]
                 ],
                 'required' => []
             ],
@@ -59,17 +90,34 @@ class BatchesTool extends AbstractTool
                 'required' => ['content']
             ],
             'examples' => [
-                // Usage examples will be added in the future
+                [
+                    'description' => 'List last 10 batch operations',
+                    'params' => ['limit' => 10]
+                ],
+                [
+                    'description' => 'Get details of a specific batch operation',
+                    'params' => ['id' => '12345']
+                ],
+                [
+                    'description' => 'List failed batch operations',
+                    'params' => ['status' => 'failed']
+                ]
             ]
         ];
     }
 
-    public function execute($params)
+    /**
+     * Executes the tool with the given parameters
+     * 
+     * @param array $params Tool parameters
+     * @return array Response in MCP format
+     */
+    public function execute(array $params): array
     {
         Logger::info($this->getName() . ' execute method called', ['params' => $params]);
 
         try {
-            // Verificar se foi solicitado detalhes de um batch específico
+            // Check if details of a specific batch operation were requested
             if ($this->hasId($params)) {
                 return $this->getBatchDetails($params['id']);
             }
@@ -86,101 +134,97 @@ class BatchesTool extends AbstractTool
     }
 
     /**
-     * Lista os batches registrados pelo Telescope
+     * Lists batch operations recorded by Telescope
+     * 
+     * @param array $params Query parameters
+     * @return array Response in MCP format
      */
-    protected function listBatches($params)
+    protected function listBatches(array $params): array
     {
-        // Definir limite para a consulta
+        // Set query limit
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
 
-        // Configurar opções
+        // Configure options
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // TODO: Adicionar filtros específicos para batches se necessário
+        // Add filters if specified
+        if (!empty($params['status'])) {
+            $options->tag('status:' . $params['status']);
+        }
+        if (!empty($params['name'])) {
+            $options->tag('name:' . $params['name']);
+        }
 
-        // Buscar entradas usando o repositório
+        // Fetch entries using the repository
         $entries = $this->entriesRepository->get(EntryType::BATCH, $options);
 
         if (empty($entries)) {
-            return $this->formatResponse("Nenhum batch encontrado.");
+            return $this->formatResponse("No batch operations found.");
         }
 
         $batches = [];
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $createdAt = DateFormatter::format($entry->created_at);
 
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in BatchesTool::listBatches', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            }
-
-            // TODO: Extrair informações relevantes do batch (ex: ID do batch, nome, status, jobs)
-            // A estrutura exata pode variar dependendo de como o Telescope registra batches.
-            $batchId = $content['id'] ?? 'N/A'; // O Telescope armazena o UUID do batch aqui
-            $name = $content['name'] ?? 'N/A';
-            $totalJobs = $content['total_jobs'] ?? 0;
-            $pendingJobs = $content['pending_jobs'] ?? 0;
-            $failedJobs = $content['failed_jobs'] ?? 0;
-            $status = 'Processing'; // Determinar status baseado em pending/failed/total jobs
-            if ($pendingJobs === 0 && $failedJobs === 0 && $totalJobs > 0) {
-                $status = 'Completed';
-            } elseif ($failedJobs > 0) {
-                $status = 'Failed';
-            } elseif ($pendingJobs > 0 && $totalJobs > 0) {
-                 $status = 'Pending'; // ou 'Processing'
-            }
-
+            // Extract relevant information from the batch operation
+            $name = $content['name'] ?? 'Unknown';
+            $status = $content['status'] ?? 'Unknown';
+            $totalJobs = $content['totalJobs'] ?? 0;
+            $pendingJobs = $content['pendingJobs'] ?? 0;
+            $failedJobs = $content['failedJobs'] ?? 0;
+            $finishedJobs = $totalJobs - $pendingJobs - $failedJobs;
 
             $batches[] = [
-                'id' => $entry->id, // ID da entrada do Telescope
-                'batch_id' => $batchId, // UUID do Batch
+                'id' => $entry->id,
                 'name' => $name,
-                'total_jobs' => $totalJobs,
-                'pending_jobs' => $pendingJobs,
-                'failed_jobs' => $failedJobs,
                 'status' => $status,
-                'created_at' => $createdAt,
+                'total' => $totalJobs,
+                'finished' => $finishedJobs,
+                'pending' => $pendingJobs,
+                'failed' => $failedJobs,
+                'created_at' => $createdAt
             ];
         }
 
-        // Formatação tabular para facilitar a leitura
-        $table = "Batches:\n\n";
-        $table .= sprintf("%-5s %-36s %-20s %-10s %-10s %-10s %-10s %-20s\n", "ID", "Batch ID", "Name", "Total", "Pending", "Failed", "Status", "Created At");
-        $table .= str_repeat("-", 150) . "\n"; // Ajustar largura da linha separadora
+        // Tabular formatting for better readability
+        $table = "Batch Operations:\n\n";
+        $table .= sprintf("%-5s %-30s %-10s %-8s %-8s %-8s %-8s %-20s\n", 
+            "ID", "Name", "Status", "Total", "Done", "Pending", "Failed", "Created At");
+        $table .= str_repeat("-", 105) . "\n";
 
         foreach ($batches as $batch) {
-             // Truncar nome se muito longo
+            // Format status with indicator
+            $statusStr = strtoupper($batch['status']);
+            switch (strtolower($batch['status'])) {
+                case 'failed':
+                    $statusStr .= ' [!]';
+                    break;
+                case 'finished':
+                    $statusStr .= ' [✓]';
+                    break;
+                case 'processing':
+                    $statusStr .= ' [→]';
+                    break;
+            }
+
+            // Truncate name if too long
             $name = $batch['name'];
-            if (strlen($name) > 20) {
-                $name = substr($name, 0, 17) . "...";
+            if (strlen($name) > 30) {
+                $name = substr($name, 0, 27) . "...";
             }
 
             $table .= sprintf(
-                "%-5s %-36s %-20s %-10s %-10s %-10s %-10s %-20s\n",
+                "%-5s %-30s %-10s %-8d %-8d %-8d %-8d %-20s\n",
                 $batch['id'],
-                $batch['batch_id'],
                 $name,
-                $batch['total_jobs'],
-                $batch['pending_jobs'],
-                $batch['failed_jobs'],
-                $batch['status'],
+                $statusStr,
+                $batch['total'],
+                $batch['finished'],
+                $batch['pending'],
+                $batch['failed'],
                 $batch['created_at']
             );
         }
@@ -189,75 +233,70 @@ class BatchesTool extends AbstractTool
     }
 
     /**
-     * Obtém detalhes de um batch específico
+     * Gets details of a specific batch operation
+     * 
+     * @param string $id The batch operation ID
+     * @return array Response in MCP format
      */
-    protected function getBatchDetails($id)
+    protected function getBatchDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
 
-        // Buscar a entrada específica
+        // Fetch the specific entry
         $entry = $this->getEntryDetails(EntryType::BATCH, $id);
 
         if (!$entry) {
-            return $this->formatError("Batch não encontrado: {$id}");
+            return $this->formatError("Batch operation not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
 
-        // Formatação detalhada do batch
-        $output = "Batch Details:\n\n";
-        $output .= "Telescope Entry ID: {$entry->id}\n";
-        $output .= "Batch UUID: " . ($content['id'] ?? 'N/A') . "\n"; // UUID do batch
-        $output .= "Name: " . ($content['name'] ?? 'N/A') . "\n";
-        $output .= "Total Jobs: " . ($content['total_jobs'] ?? 0) . "\n";
-        $output .= "Pending Jobs: " . ($content['pending_jobs'] ?? 0) . "\n";
-        $output .= "Failed Jobs: " . ($content['failed_jobs'] ?? 0) . "\n";
+        // Detailed formatting of the batch operation
+        $output = "Batch Operation Details:\n\n";
+        $output .= "ID: {$entry->id}\n";
+        $output .= "Name: " . ($content['name'] ?? 'Unknown') . "\n";
+        $output .= "Status: " . strtoupper($content['status'] ?? 'Unknown') . "\n";
 
-        $status = 'Processing'; // Determinar status baseado em pending/failed/total jobs
-        if (($content['pending_jobs'] ?? 0) === 0 && ($content['failed_jobs'] ?? 0) === 0 && ($content['total_jobs'] ?? 0) > 0) {
-            $status = 'Completed';
-        } elseif (($content['failed_jobs'] ?? 0) > 0) {
-            $status = 'Failed';
-        } elseif (($content['pending_jobs'] ?? 0) > 0 && ($content['total_jobs'] ?? 0) > 0) {
-             $status = 'Pending'; // ou 'Processing'
+        // Progress information
+        $totalJobs = $content['totalJobs'] ?? 0;
+        $pendingJobs = $content['pendingJobs'] ?? 0;
+        $failedJobs = $content['failedJobs'] ?? 0;
+        $finishedJobs = $totalJobs - $pendingJobs - $failedJobs;
+
+        $output .= "\nProgress:\n";
+        $output .= "Total Jobs: {$totalJobs}\n";
+        $output .= "Finished Jobs: {$finishedJobs}\n";
+        $output .= "Pending Jobs: {$pendingJobs}\n";
+        $output .= "Failed Jobs: {$failedJobs}\n";
+
+        if ($totalJobs > 0) {
+            $progress = ($finishedJobs / $totalJobs) * 100;
+            $output .= "Completion: " . number_format($progress, 1) . "%\n";
         }
-        $output .= "Status: {$status}\n";
 
+        $createdAt = DateFormatter::format($entry->created_at);
+        $output .= "\nCreated At: {$createdAt}\n";
 
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
+        // Options and configuration
+        if (!empty($content['options'])) {
+            $output .= "\nOptions:\n" . json_encode($content['options'], JSON_PRETTY_PRINT) . "\n";
+        }
+
+        // Failed jobs details
+        if ($failedJobs > 0 && !empty($content['failedJobs'])) {
+            $output .= "\nFailed Jobs:\n";
+            foreach ($content['failedJobs'] as $job) {
+                $output .= "- Job: " . ($job['name'] ?? 'Unknown') . "\n";
+                $output .= "  Error: " . ($job['error'] ?? 'Unknown error') . "\n";
+                if (!empty($job['stack'])) {
+                    $output .= "  Stack Trace:\n    " . implode("\n    ", array_slice($job['stack'], 0, 5)) . "\n";
+                    if (count($job['stack']) > 5) {
+                        $output .= "    ... (truncated)\n";
                     }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in BatchesTool::getBatchDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
                 }
+                $output .= "\n";
             }
         }
-        $output .= "Created At: {$createdAt}\n\n";
-
-        // Jobs dentro do batch (pode ser uma lista de IDs ou detalhes limitados)
-        if (isset($content['jobs']) && is_array($content['jobs']) && !empty($content['jobs'])) {
-             $output .= "Jobs in Batch:\n";
-             // Decidir como exibir os jobs. Apenas IDs? Nome e status?
-             // Por enquanto, lista básica:
-             foreach($content['jobs'] as $job) {
-                 $output .= "- " . ($job['name'] ?? 'Unknown Job') . " (ID: " . ($job['id'] ?? 'N/A') . ", Status: " . ($job['status'] ?? 'Unknown') . ")\n";
-             }
-             $output .= "\n";
-        }
-
-
-        // TODO: Adicionar outros detalhes relevantes se existirem no conteúdo do batch
 
         return $this->formatResponse($output);
     }

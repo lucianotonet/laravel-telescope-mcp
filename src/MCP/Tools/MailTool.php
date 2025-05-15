@@ -12,7 +12,7 @@ class MailTool extends AbstractTool
     /**
      * Retorna o nome curto da ferramenta
      */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'mail';
     }
@@ -20,7 +20,7 @@ class MailTool extends AbstractTool
     /**
      * Retorna o esquema da ferramenta
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
@@ -71,7 +71,7 @@ class MailTool extends AbstractTool
     /**
      * Executa a ferramenta com os parâmetros fornecidos
      */
-    public function execute($params)
+    public function execute(array $params): array
     {
         try {
             Logger::info($this->getName() . ' execute method called', ['params' => $params]);
@@ -95,7 +95,7 @@ class MailTool extends AbstractTool
     /**
      * Lista os e-mails registrados pelo Telescope
      */
-    protected function listMails($params)
+    protected function listMails(array $params): array
     {
         // Definir limite para a consulta
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
@@ -196,7 +196,7 @@ class MailTool extends AbstractTool
     /**
      * Obtém detalhes de um e-mail específico
      */
-    protected function getMailDetails($id)
+    protected function getMailDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
         

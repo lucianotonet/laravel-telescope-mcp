@@ -4,56 +4,70 @@ namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 
+/**
+ * Tool for interacting with gate checks recorded by Telescope
+ */
 class GatesTool extends AbstractTool
 {
     /**
-     * Retorna o nome da ferramenta
-     *
-     * @return string
+     * @var EntriesRepository
      */
-    public function getName()
+    protected $entriesRepository;
+
+    /**
+     * GatesTool constructor
+     * 
+     * @param EntriesRepository $entriesRepository The Telescope entries repository
+     */
+    public function __construct(EntriesRepository $entriesRepository)
     {
-        return $this->getShortName();
+        $this->entriesRepository = $entriesRepository;
     }
 
     /**
-     * Retorna o nome curto da ferramenta
+     * Returns the tool's short name
+     * 
+     * @return string
      */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'gates';
     }
 
     /**
-     * Retorna o esquema da ferramenta
+     * Returns the tool's schema
+     * 
+     * @return array
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
-            'description' => 'Lista e analisa avaliações de gates de autorização registradas pelo Telescope.',
+            'description' => 'Lists and analyzes gate authorization checks recorded by Telescope.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'id' => [
                         'type' => 'string',
-                        'description' => 'ID da avaliação de gate específica para ver detalhes'
+                        'description' => 'ID of the specific gate check to view details'
                     ],
                     'limit' => [
                         'type' => 'integer',
-                        'description' => 'Número máximo de avaliações de gate a retornar',
+                        'description' => 'Maximum number of gate checks to return',
                         'default' => 50
                     ],
                     'ability' => [
                         'type' => 'string',
-                        'description' => 'Filtrar por nome da habilidade'
+                        'description' => 'Filter by gate ability name'
                     ],
                     'result' => [
-                        'type' => 'boolean',
-                        'description' => 'Filtrar por resultado (true para permitido, false para negado)'
+                        'type' => 'string',
+                        'description' => 'Filter by check result (allowed, denied)',
+                        'enum' => ['allowed', 'denied']
                     ]
                 ],
                 'required' => []
@@ -76,22 +90,39 @@ class GatesTool extends AbstractTool
                 'required' => ['content']
             ],
             'examples' => [
-                // Usage examples will be added in the future
+                [
+                    'description' => 'List last 10 gate checks',
+                    'params' => ['limit' => 10]
+                ],
+                [
+                    'description' => 'Get details of a specific gate check',
+                    'params' => ['id' => '12345']
+                ],
+                [
+                    'description' => 'List denied gate checks',
+                    'params' => ['result' => 'denied']
+                ]
             ]
         ];
     }
 
-    public function execute($params)
+    /**
+     * Executes the tool with the given parameters
+     * 
+     * @param array $params Tool parameters
+     * @return array Response in MCP format
+     */
+    public function execute(array $params): array
     {
         Logger::info($this->getName() . ' execute method called', ['params' => $params]);
 
         try {
-            // Verificar se foi solicitado detalhes de uma avaliação de gate específica
+            // Check if details of a specific gate check were requested
             if ($this->hasId($params)) {
                 return $this->getGateDetails($params['id']);
             }
 
-            return $this->listGateEvaluations($params);
+            return $this->listGateChecks($params);
         } catch (\Exception $e) {
             Logger::error($this->getName() . ' execution error', [
                 'error' => $e->getMessage(),
@@ -103,91 +134,86 @@ class GatesTool extends AbstractTool
     }
 
     /**
-     * Lista as avaliações de gates registradas pelo Telescope
+     * Lists gate checks recorded by Telescope
+     * 
+     * @param array $params Query parameters
+     * @return array Response in MCP format
      */
-    protected function listGateEvaluations($params)
+    protected function listGateChecks(array $params): array
     {
-        // Definir limite para a consulta
+        // Set query limit
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
 
-        // Configurar opções
+        // Configure options
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Adicionar filtros se especificados
+        // Add filters if specified
         if (!empty($params['ability'])) {
-            $options->tag($params['ability']);
+            $options->tag('ability:' . $params['ability']);
         }
-        if (isset($params['result'])) {
-            $options->tag('result:' . ($params['result'] ? 'allowed' : 'denied'));
+        if (!empty($params['result'])) {
+            $options->tag('result:' . $params['result']);
         }
 
-        // Buscar entradas usando o repositório
+        // Fetch entries using the repository
         $entries = $this->entriesRepository->get(EntryType::GATE, $options);
 
         if (empty($entries)) {
-            return $this->formatResponse("Nenhuma avaliação de gate encontrada.");
+            return $this->formatResponse("No gate checks found.");
         }
 
-        $gateEvaluations = [];
+        $checks = [];
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $createdAt = DateFormatter::format($entry->created_at);
 
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in GatesTool::listGateEvaluations', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            }
+            // Extract relevant information from the gate check
+            $ability = $content['ability'] ?? 'Unknown';
+            $result = isset($content['result']) && $content['result'] ? 'Allowed' : 'Denied';
+            $user = $content['user'] ?? 'Unknown';
 
-            $gateEvaluations[] = [
+            $checks[] = [
                 'id' => $entry->id,
-                'ability' => $content['ability'] ?? 'Unknown',
-                'result' => $content['result'] ?? 'Unknown', // true/false/null
-                'arguments' => $content['arguments'] ?? [],
+                'ability' => $ability,
+                'result' => $result,
+                'user' => $user,
                 'created_at' => $createdAt
             ];
         }
 
-        // Formatação tabular para facilitar a leitura
-        $table = "Gate Evaluations:\n\n";
-        $table .= sprintf("%-5s %-40s %-8s %-20s\n", "ID", "Ability", "Result", "Created At");
-        $table .= str_repeat("-", 80) . "\n";
+        // Tabular formatting for better readability
+        $table = "Gate Checks:\n\n";
+        $table .= sprintf("%-5s %-30s %-10s %-30s %-20s\n", 
+            "ID", "Ability", "Result", "User", "Created At");
+        $table .= str_repeat("-", 100) . "\n";
 
-        foreach ($gateEvaluations as $evaluation) {
-            // Truncar ability se muito longa
-            $ability = $evaluation['ability'];
-            if (strlen($ability) > 40) {
-                $ability = substr($ability, 0, 37) . "...";
+        foreach ($checks as $check) {
+            // Truncate fields if too long
+            $ability = $check['ability'];
+            if (strlen($ability) > 30) {
+                $ability = substr($ability, 0, 27) . "...";
             }
 
-            $result = 'Unknown';
-            if ($evaluation['result'] === true) {
-                $result = 'Allowed';
-            } elseif ($evaluation['result'] === false) {
-                $result = 'Denied';
+            $user = $check['user'];
+            if (strlen($user) > 30) {
+                $user = substr($user, 0, 27) . "...";
+            }
+
+            // Format result with color indicator
+            $resultStr = $check['result'];
+            if ($resultStr === 'Denied') {
+                $resultStr .= ' [!]';
             }
 
             $table .= sprintf(
-                "%-5s %-40s %-8s %-20s\n",
-                $evaluation['id'],
+                "%-5s %-30s %-10s %-30s %-20s\n",
+                $check['id'],
                 $ability,
-                $result,
-                $evaluation['created_at']
+                $resultStr,
+                $user,
+                $check['created_at']
             );
         }
 
@@ -195,63 +221,42 @@ class GatesTool extends AbstractTool
     }
 
     /**
-     * Obtém detalhes de uma avaliação de gate específica
+     * Gets details of a specific gate check
+     * 
+     * @param string $id The gate check ID
+     * @return array Response in MCP format
      */
-    protected function getGateDetails($id)
+    protected function getGateDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
 
-        // Buscar a entrada específica
+        // Fetch the specific entry
         $entry = $this->getEntryDetails(EntryType::GATE, $id);
 
         if (!$entry) {
-            return $this->formatError("Avaliação de gate não encontrada: {$id}");
+            return $this->formatError("Gate check not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
 
-        // Formatação detalhada da avaliação de gate
-        $output = "Gate Evaluation Details:\n\n";
+        // Detailed formatting of the gate check
+        $output = "Gate Check Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Ability: " . ($content['ability'] ?? 'Unknown') . "\n";
+        $output .= "Result: " . (isset($content['result']) && $content['result'] ? 'Allowed' : 'Denied') . "\n";
+        $output .= "User: " . ($content['user'] ?? 'Unknown') . "\n";
 
-        $result = 'Unknown';
-        if (($content['result'] ?? null) === true) {
-            $result = 'Allowed';
-        } elseif (($content['result'] ?? null) === false) {
-            $result = 'Denied';
-        }
-        $output .= "Result: {$result}\n";
-
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
-                    }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in GatesTool::getGateDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-        }
+        $createdAt = DateFormatter::format($entry->created_at);
         $output .= "Created At: {$createdAt}\n\n";
 
-        // Argumentos
-        if (isset($content['arguments']) && !empty($content['arguments'])) {
-            $output .= "Arguments:\n" . json_encode($content['arguments'], JSON_PRETTY_PRINT) . "\n";
+        // Arguments
+        if (!empty($content['arguments'])) {
+            $output .= "Arguments:\n" . json_encode($content['arguments'], JSON_PRETTY_PRINT) . "\n\n";
         }
 
-        // User
-        if (isset($content['user']) && !empty($content['user'])) {
-            $output .= "User:\n" . json_encode($content['user'], JSON_PRETTY_PRINT) . "\n";
+        // Additional context
+        if (!empty($content['context'])) {
+            $output .= "Context:\n" . json_encode($content['context'], JSON_PRETTY_PRINT) . "\n";
         }
 
         return $this->formatResponse($output);

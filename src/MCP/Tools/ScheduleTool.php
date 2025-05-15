@@ -4,56 +4,61 @@ namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 
+/**
+ * Tool for interacting with scheduled tasks recorded by Telescope
+ */
 class ScheduleTool extends AbstractTool
 {
     /**
-     * Retorna o nome da ferramenta
-     *
-     * @return string
+     * @var EntriesRepository
      */
-    public function getName()
+    protected $entriesRepository;
+
+    /**
+     * ScheduleTool constructor
+     * 
+     * @param EntriesRepository $entriesRepository The Telescope entries repository
+     */
+    public function __construct(EntriesRepository $entriesRepository)
     {
-        return $this->getShortName();
+        $this->entriesRepository = $entriesRepository;
     }
 
     /**
-     * Retorna o nome curto da ferramenta
+     * Returns the tool's short name
+     * 
+     * @return string
      */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'schedule';
     }
 
     /**
-     * Retorna o esquema da ferramenta
+     * Returns the tool's schema
+     * 
+     * @return array
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
-            'description' => 'Lista e analisa tarefas agendadas (scheduled tasks) registradas pelo Telescope.',
+            'description' => 'Lists and analyzes scheduled tasks recorded by Telescope.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'id' => [
                         'type' => 'string',
-                        'description' => 'ID da tarefa agendada específica para ver detalhes'
+                        'description' => 'ID of the specific scheduled task to view details'
                     ],
                     'limit' => [
                         'type' => 'integer',
-                        'description' => 'Número máximo de tarefas agendadas a retornar',
+                        'description' => 'Maximum number of scheduled tasks to return',
                         'default' => 50
-                    ],
-                    'command' => [
-                        'type' => 'string',
-                        'description' => 'Filtrar por comando da tarefa agendada'
-                    ],
-                    'expression' => [
-                        'type' => 'string',
-                        'description' => 'Filtrar por expressão Cron da tarefa agendada'
                     ]
                 ],
                 'required' => []
@@ -76,19 +81,32 @@ class ScheduleTool extends AbstractTool
                 'required' => ['content']
             ],
             'examples' => [
-                // Usage examples will be added in the future
+                [
+                    'description' => 'List last 10 scheduled tasks',
+                    'params' => ['limit' => 10]
+                ],
+                [
+                    'description' => 'Get details of a specific scheduled task',
+                    'params' => ['id' => '12345']
+                ]
             ]
         ];
     }
 
-    public function execute($params)
+    /**
+     * Executes the tool with the given parameters
+     * 
+     * @param array $params Tool parameters
+     * @return array Response in MCP format
+     */
+    public function execute(array $params): array
     {
         Logger::info($this->getName() . ' execute method called', ['params' => $params]);
 
         try {
-            // Verificar se foi solicitado detalhes de uma tarefa agendada específica
+            // Check if details of a specific scheduled task were requested
             if ($this->hasId($params)) {
-                return $this->getScheduledTaskDetails($params['id']);
+                return $this->getScheduleDetails($params['id']);
             }
 
             return $this->listScheduledTasks($params);
@@ -103,76 +121,62 @@ class ScheduleTool extends AbstractTool
     }
 
     /**
-     * Lista as tarefas agendadas registradas pelo Telescope
+     * Lists scheduled tasks recorded by Telescope
+     * 
+     * @param array $params Query parameters
+     * @return array Response in MCP format
      */
-    protected function listScheduledTasks($params)
+    protected function listScheduledTasks(array $params): array
     {
-        // Definir limite para a consulta
+        // Set query limit
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
 
-        // Configurar opções
+        // Configure options
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Adicionar filtros se especificados
-        if (!empty($params['command'])) {
-            $options->tag('command:' . $params['command']);
-        }
-        if (!empty($params['expression'])) {
-            $options->tag('expression:' . $params['expression']);
-        }
-
-        // Buscar entradas usando o repositório
+        // Fetch entries using the repository
         $entries = $this->entriesRepository->get(EntryType::SCHEDULED_TASK, $options);
 
         if (empty($entries)) {
-            return $this->formatResponse("Nenhuma tarefa agendada encontrada.");
+            return $this->formatResponse("No scheduled tasks found.");
         }
 
-        $scheduledTasks = [];
+        $tasks = [];
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $createdAt = DateFormatter::format($entry->created_at);
 
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in ScheduleTool::listScheduledTasks', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            }
+            // Extract relevant information from the scheduled task
+            $command = $content['command'] ?? 'Unknown';
+            $expression = $content['expression'] ?? 'Unknown';
+            $description = $content['description'] ?? '';
+            $output = $content['output'] ?? '';
+            $exitCode = $content['exit_code'] ?? null;
+            $status = $exitCode === 0 ? 'Success' : ($exitCode === null ? 'Running' : 'Failed');
 
-            $scheduledTasks[] = [
+            $tasks[] = [
                 'id' => $entry->id,
-                'command' => $content['command'] ?? 'Unknown',
-                'expression' => $content['expression'] ?? 'Unknown',
-                'description' => $content['description'] ?? 'N/A',
+                'command' => $command,
+                'expression' => $expression,
+                'description' => $description,
+                'status' => $status,
                 'created_at' => $createdAt
             ];
         }
 
-        // Formatação tabular para facilitar a leitura
+        // Tabular formatting for better readability
         $table = "Scheduled Tasks:\n\n";
-        $table .= sprintf("%-5s %-40s %-20s %-30s %-20s\n", "ID", "Command", "Expression", "Description", "Created At");
+        $table .= sprintf("%-5s %-30s %-15s %-30s %-10s %-20s\n", 
+            "ID", "Command", "Expression", "Description", "Status", "Created At");
         $table .= str_repeat("-", 120) . "\n";
 
-        foreach ($scheduledTasks as $task) {
-             // Truncar campos longos
+        foreach ($tasks as $task) {
+            // Truncate fields if too long
             $command = $task['command'];
-            if (strlen($command) > 40) {
-                $command = substr($command, 0, 37) . "...";
+            if (strlen($command) > 30) {
+                $command = substr($command, 0, 27) . "...";
             }
 
             $description = $task['description'];
@@ -181,11 +185,12 @@ class ScheduleTool extends AbstractTool
             }
 
             $table .= sprintf(
-                "%-5s %-40s %-20s %-30s %-20s\n",
+                "%-5s %-30s %-15s %-30s %-10s %-20s\n",
                 $task['id'],
                 $command,
                 $task['expression'],
                 $description,
+                $task['status'],
                 $task['created_at']
             );
         }
@@ -194,58 +199,45 @@ class ScheduleTool extends AbstractTool
     }
 
     /**
-     * Obtém detalhes de uma tarefa agendada específica
+     * Gets details of a specific scheduled task
+     * 
+     * @param string $id The scheduled task ID
+     * @return array Response in MCP format
      */
-    protected function getScheduledTaskDetails($id)
+    protected function getScheduleDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
 
-        // Buscar a entrada específica
+        // Fetch the specific entry
         $entry = $this->getEntryDetails(EntryType::SCHEDULED_TASK, $id);
 
         if (!$entry) {
-            return $this->formatError("Tarefa agendada não encontrada: {$id}");
+            return $this->formatError("Scheduled task not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
 
-        // Formatação detalhada da tarefa agendada
+        // Detailed formatting of the scheduled task
         $output = "Scheduled Task Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Command: " . ($content['command'] ?? 'Unknown') . "\n";
         $output .= "Expression: " . ($content['expression'] ?? 'Unknown') . "\n";
-        $output .= "Description: " . ($content['description'] ?? 'N/A') . "\n";
-
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
-                    }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in ScheduleTool::getScheduledTaskDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
+        $output .= "Description: " . ($content['description'] ?? 'None') . "\n";
+        
+        $exitCode = $content['exit_code'] ?? null;
+        $status = $exitCode === 0 ? 'Success' : ($exitCode === null ? 'Running' : 'Failed');
+        $output .= "Status: {$status}\n";
+        
+        if ($exitCode !== null) {
+            $output .= "Exit Code: {$exitCode}\n";
         }
+
+        $createdAt = DateFormatter::format($entry->created_at);
         $output .= "Created At: {$createdAt}\n\n";
 
-        // Outros detalhes relevantes
-        if (isset($content['user'])) {
-            $output .= "User: " . ($content['user'] ?? 'N/A') . "\n";
-        }
-        if (isset($content['output'])) {
-            $output .= "Output: " . ($content['output'] ?? 'N/A') . "\n";
-        }
-         if (isset($content['exit_code'])) {
-            $output .= "Exit Code: " . ($content['exit_code'] ?? 'N/A') . "\n";
+        // Command output
+        if (!empty($content['output'])) {
+            $output .= "Command Output:\n" . $content['output'] . "\n\n";
         }
 
         return $this->formatResponse($output);

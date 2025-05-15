@@ -6,7 +6,7 @@ use Laravel\Telescope\Contracts\EntriesRepository;
 use LucianoTonet\TelescopeMcp\Support\Logger;
 
 /**
- * Classe base abstrata para todas as ferramentas do MCP
+ * Abstract base class for all MCP tools
  */
 abstract class AbstractTool
 {
@@ -23,7 +23,7 @@ abstract class AbstractTool
     /**
      * AbstractTool constructor
      * 
-     * @param EntriesRepository $entriesRepository
+     * @param EntriesRepository|null $entriesRepository The Telescope entries repository
      */
     public function __construct(EntriesRepository $entriesRepository = null)
     {
@@ -31,56 +31,57 @@ abstract class AbstractTool
     }
     
     /**
-     * Retorna o nome da ferramenta
+     * Returns the tool's name
      * 
      * @return string
      */
-    public function getName()
+    public function getName(): string
     {
         return $this->getShortName();
     }
     
     /**
-     * Retorna o nome curto da ferramenta (sem o prefixo)
+     * Returns the tool's short name (without prefix)
      * 
      * @return string
      */
-    abstract public function getShortName();
+    abstract public function getShortName(): string;
     
     /**
-     * Retorna o esquema da ferramenta
+     * Returns the tool's schema
      * 
      * @return array
      */
-    abstract public function getSchema();
+    abstract public function getSchema(): array;
     
     /**
-     * Executa a ferramenta com os parâmetros fornecidos
+     * Executes the tool with the given parameters
      * 
-     * @param array $params
-     * @return array
+     * @param array $params Tool parameters
+     * @return array Response in MCP format
      */
-    abstract public function execute($params);
+    abstract public function execute(array $params): array;
     
     /**
-     * Verifica se um ID foi fornecido nos parâmetros
+     * Checks if an ID was provided in the parameters
      * 
-     * @param array $params
+     * @param array $params Tool parameters
      * @return bool
      */
-    protected function hasId($params)
+    protected function hasId(array $params): bool
     {
         return isset($params['id']) && !empty($params['id']);
     }
     
     /**
-     * Obtém os detalhes de uma entrada específica do Telescope
+     * Gets details of a specific Telescope entry
      * 
-     * @param string $entryType
-     * @param string $id
-     * @return mixed
+     * @param string $entryType The type of entry (e.g., cache, request, log)
+     * @param string $id The entry ID
+     * @return mixed The entry details
+     * @throws \Exception When entry is not found
      */
-    protected function getEntryDetails($entryType, $id)
+    protected function getEntryDetails(string $entryType, string $id)
     {
         Logger::debug("Getting details for {$entryType} entry", ['id' => $id]);
         
@@ -98,23 +99,23 @@ abstract class AbstractTool
     }
     
     /**
-     * Formata uma resposta para o MCP
+     * Formats a response for MCP
      * 
-     * @param mixed $data
-     * @param string $type
-     * @return array
+     * @param mixed $data The data to format
+     * @param string $type The response type (default: text)
+     * @return array Response in MCP format
      */
-    protected function formatResponse($data, $type = 'text')
+    protected function formatResponse($data, string $type = 'text'): array
     {
-        // Se já for um array formatado com 'content', retorne-o diretamente
+        // If already formatted with 'content', return it directly
         if (is_array($data) && isset($data['content'])) {
             return $data;
         }
         
-        // Converte para string se necessário
+        // Convert to string if needed
         $text = is_string($data) ? $data : json_encode($data, JSON_PRETTY_PRINT);
         
-        // Retorna no formato esperado pelo MCP
+        // Return in expected MCP format
         return [
             'content' => [
                 [
@@ -126,12 +127,12 @@ abstract class AbstractTool
     }
     
     /**
-     * Formata uma resposta de erro para o MCP
+     * Formats an error response for MCP
      * 
-     * @param string $message
-     * @return array
+     * @param string $message The error message
+     * @return array Response in MCP format
      */
-    protected function formatError($message)
+    protected function formatError(string $message): array
     {
         return $this->formatResponse($message, 'error');
     }

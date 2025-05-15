@@ -3,52 +3,71 @@
 namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
+use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
-use LucianoTonet\TelescopeMcp\Support\Logger;
-use Laravel\Telescope\Models\TelescopeEntry;
 
+/**
+ * Tool for interacting with log entries recorded by Telescope
+ */
 class LogsTool extends AbstractTool
 {
+    /**
+     * @var EntriesRepository
+     */
     protected $entriesRepository;
-    
+
+    /**
+     * LogsTool constructor
+     * 
+     * @param EntriesRepository $entriesRepository The Telescope entries repository
+     */
     public function __construct(EntriesRepository $entriesRepository)
     {
         $this->entriesRepository = $entriesRepository;
     }
-    
+
     /**
-     * Retorna o nome curto da ferramenta
+     * Returns the tool's short name
+     * 
+     * @return string
      */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'logs';
     }
-    
+
     /**
-     * Retorna o esquema da ferramenta
+     * Returns the tool's schema
+     * 
+     * @return array
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
-            'description' => 'Recupera logs da aplicação registrados pelo Telescope. Permite filtrar por nível e limitar resultados.',
+            'description' => 'Lists and analyzes log entries recorded by Telescope.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'id' => [
                         'type' => 'string',
-                        'description' => 'ID do log específico para ver detalhes'
+                        'description' => 'ID of the specific log entry to view details'
                     ],
                     'limit' => [
                         'type' => 'integer',
-                        'description' => 'Número máximo de logs a retornar. Padrão é 100.',
-                        'default' => 100
+                        'description' => 'Maximum number of log entries to return',
+                        'default' => 50
                     ],
                     'level' => [
                         'type' => 'string',
-                        'description' => 'Filtrar logs por nível. Insensível a maiúsculas/minúsculas.',
+                        'description' => 'Filter by log level (debug, info, notice, warning, error, critical, alert, emergency)',
                         'enum' => ['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency']
+                    ],
+                    'message' => [
+                        'type' => 'string',
+                        'description' => 'Filter by log message content'
                     ]
                 ],
                 'required' => []
@@ -72,205 +91,188 @@ class LogsTool extends AbstractTool
             ],
             'examples' => [
                 [
-                    'description' => 'Obter os últimos 10 logs de erro',
-                    'params' => [
-                        'level' => 'error',
-                        'limit' => 10
-                    ]
+                    'description' => 'List last 10 log entries',
+                    'params' => ['limit' => 10]
                 ],
                 [
-                    'description' => 'Obter todos os logs de debug (até 100)',
-                    'params' => [
-                        'level' => 'debug'
-                    ]
+                    'description' => 'Get details of a specific log entry',
+                    'params' => ['id' => '12345']
                 ],
                 [
-                    'description' => 'Ver detalhes de um log específico',
-                    'params' => [
-                        'id' => '123456'
-                    ]
+                    'description' => 'List error logs',
+                    'params' => ['level' => 'error']
                 ]
             ]
         ];
     }
-    
-    /**
-     * Executa a ferramenta com os parâmetros fornecidos
-     */
-    public function execute($params)
-    {
-        try {
-            Logger::info($this->getName() . ' execute method called', ['params' => $params]);
 
-            // Verificar se foi solicitado detalhes de um log específico
+    /**
+     * Executes the tool with the given parameters
+     * 
+     * @param array $params Tool parameters
+     * @return array Response in MCP format
+     */
+    public function execute(array $params): array
+    {
+        Logger::info($this->getName() . ' execute method called', ['params' => $params]);
+
+        try {
+            // Check if details of a specific log entry were requested
             if ($this->hasId($params)) {
                 return $this->getLogDetails($params['id']);
             }
-            
+
             return $this->listLogs($params);
         } catch (\Exception $e) {
             Logger::error($this->getName() . ' execution error', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            
+
             return $this->formatError('Error: ' . $e->getMessage());
         }
     }
-    
+
     /**
-     * Lista os logs registrados pelo Telescope
+     * Lists log entries recorded by Telescope
+     * 
+     * @param array $params Query parameters
+     * @return array Response in MCP format
      */
-    protected function listLogs($params)
+    protected function listLogs(array $params): array
     {
-        // Configurar opções de consulta
+        // Set query limit
+        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
+
+        // Configure options
         $options = new EntryQueryOptions();
-        $options->limit($params['limit'] ?? 100);
-        
-        // Buscar entradas usando o repositório
+        $options->limit($limit);
+
+        // Add filters if specified
+        if (!empty($params['level'])) {
+            $options->tag('level:' . strtolower($params['level']));
+        }
+        if (!empty($params['message'])) {
+            $options->tag('message:' . $params['message']);
+        }
+
+        // Fetch entries using the repository
         $entries = $this->entriesRepository->get(EntryType::LOG, $options);
 
-        $logs = collect($entries)
-            ->map(function ($entry) {
-                $content = is_array($entry->content) ? $entry->content : [];
-                
-                // Se o conteúdo tiver uma estrutura específica com message e context
-                if (isset($content['message'])) {
-                    return [
-                        'id' => $entry->id,
-                        'timestamp' => property_exists($entry, 'created_at') && $entry->created_at ? 
-                            (is_object($entry->created_at) ? $entry->created_at->format('Y-m-d H:i:s') : 
-                                (is_string($entry->created_at) ? 
-                                    (trim($entry->created_at) !== '' ? 
-                                        (function() use ($entry) {
-                                            try {
-                                                $dateTime = new \DateTime($entry->created_at);
-                                                return $dateTime->format('Y-m-d H:i:s');
-                                            } catch (\Exception $e) {
-                                                \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in LogsTool::listLogs (message case)', [
-                                                    'date_string' => $entry->created_at,
-                                                    'entry_id' => $entry->id ?? 'N/A',
-                                                    'error' => $e->getMessage()
-                                                ]);
-                                                return 'Unknown';
-                                            }
-                                        })() : 'Unknown') : 'Unknown')) : 'Unknown',
-                        'level' => $content['level'] ?? 'info',
-                        'message' => $content['message'],
-                        'context' => $content['context'] ?? []
-                    ];
-                }
-                
-                // Fallback para outros casos
-                return [
-                    'id' => $entry->id,
-                    'timestamp' => property_exists($entry, 'created_at') && $entry->created_at ? 
-                        (is_object($entry->created_at) ? $entry->created_at->format('Y-m-d H:i:s') : 
-                            (is_string($entry->created_at) ? 
-                                (trim($entry->created_at) !== '' ? 
-                                    (function() use ($entry) {
-                                        try {
-                                            $dateTime = new \DateTime($entry->created_at);
-                                            return $dateTime->format('Y-m-d H:i:s');
-                                        } catch (\Exception $e) {
-                                            \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in LogsTool::listLogs (fallback case)', [
-                                                'date_string' => $entry->created_at,
-                                                'entry_id' => $entry->id ?? 'N/A',
-                                                'error' => $e->getMessage()
-                                            ]);
-                                            return 'Unknown';
-                                        }
-                                    })() : 'Unknown') : 'Unknown')) : 'Unknown',
-                    'level' => $content['level'] ?? 'info',
-                    'message' => json_encode($content, JSON_PRETTY_PRINT),
-                    'context' => []
-                ];
-            });
-
-        // Aplicar filtro por nível se especificado
-        if (!empty($params['level'])) {
-            $logs = $logs->filter(function ($log) use ($params) {
-                return strtolower($log['level']) === strtolower($params['level']);
-            });
+        if (empty($entries)) {
+            return $this->formatResponse("No log entries found.");
         }
 
-        // Formatação tabular para facilitar a leitura
-        $table = "Application Logs:\n\n";
-        $table .= sprintf("%-5s %-20s %-10s %-50s\n", "ID", "Timestamp", "Level", "Message");
-        $table .= str_repeat("-", 90) . "\n";
-        
+        $logs = [];
+
+        foreach ($entries as $entry) {
+            $content = is_array($entry->content) ? $entry->content : [];
+            $createdAt = DateFormatter::format($entry->created_at);
+
+            // Extract relevant information from the log entry
+            $level = $content['level'] ?? 'Unknown';
+            $message = $content['message'] ?? 'Unknown';
+            $context = $content['context'] ?? [];
+
+            $logs[] = [
+                'id' => $entry->id,
+                'level' => $level,
+                'message' => $message,
+                'context' => $context,
+                'created_at' => $createdAt
+            ];
+        }
+
+        // Tabular formatting for better readability
+        $table = "Log Entries:\n\n";
+        $table .= sprintf("%-5s %-10s %-60s %-20s\n", 
+            "ID", "Level", "Message", "Created At");
+        $table .= str_repeat("-", 100) . "\n";
+
         foreach ($logs as $log) {
-            // Truncar mensagem longa
-            $message = $log['message'];
-            if (strlen($message) > 50) {
-                $message = substr($message, 0, 47) . "...";
+            // Format level with appropriate indicator
+            $levelStr = strtoupper($log['level']);
+            switch (strtolower($log['level'])) {
+                case 'emergency':
+                case 'alert':
+                case 'critical':
+                case 'error':
+                    $levelStr .= ' [!]';
+                    break;
+                case 'warning':
+                    $levelStr .= ' [W]';
+                    break;
+                case 'notice':
+                case 'info':
+                    $levelStr .= ' [i]';
+                    break;
             }
-            
+
+            // Truncate message if too long
+            $message = $log['message'];
+            if (strlen($message) > 60) {
+                $message = substr($message, 0, 57) . "...";
+            }
+
             $table .= sprintf(
-                "%-5s %-20s %-10s %-50s\n",
+                "%-5s %-10s %-60s %-20s\n",
                 $log['id'],
-                $log['timestamp'] ?? 'Unknown',
-                strtoupper($log['level']),
-                $message
+                $levelStr,
+                $message,
+                $log['created_at']
             );
         }
-        
+
         return $this->formatResponse($table);
     }
-    
+
     /**
-     * Obtém detalhes de um log específico
+     * Gets details of a specific log entry
+     * 
+     * @param string $id The log entry ID
+     * @return array Response in MCP format
      */
-    protected function getLogDetails($id)
+    protected function getLogDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
-        
-        // Buscar a entrada específica
+
+        // Fetch the specific entry
         $entry = $this->getEntryDetails(EntryType::LOG, $id);
-        
+
         if (!$entry) {
-            return $this->formatError("Log não encontrado: {$id}");
+            return $this->formatError("Log entry not found: {$id}");
         }
-        
+
         $content = is_array($entry->content) ? $entry->content : [];
-        
-        // Formatação detalhada do log
-        $details = [
-            'id' => $entry->id,
-            'timestamp' => property_exists($entry, 'created_at') && $entry->created_at ? 
-                (is_object($entry->created_at) ? $entry->created_at->format('Y-m-d H:i:s') : 
-                    (is_string($entry->created_at) ? 
-                        (trim($entry->created_at) !== '' ? 
-                            (function() use ($entry) {
-                                try {
-                                    $dateTime = new \DateTime($entry->created_at);
-                                    return $dateTime->format('Y-m-d H:i:s');
-                                } catch (\Exception $e) {
-                                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in LogsTool::getLogDetails', [
-                                        'date_string' => $entry->created_at,
-                                        'entry_id' => $entry->id ?? 'N/A',
-                                        'error' => $e->getMessage()
-                                    ]);
-                                    return 'Unknown';
-                                }
-                            })() : 'Unknown') : 'Unknown')) : 'Unknown',
-            'level' => $content['level'] ?? 'info',
-            'message' => $content['message'] ?? json_encode($content),
-            'context' => $content['context'] ?? []
-        ];
-        
-        // Formatar como um texto estruturado para exibição
-        $output = "Log Details:\n\n";
-        $output .= "ID: {$details['id']}\n";
-        $output .= "Timestamp: {$details['timestamp']}\n";
-        $output .= "Level: " . strtoupper($details['level']) . "\n\n";
-        $output .= "Message:\n{$details['message']}\n\n";
-        
-        // Context (se disponível)
-        if (!empty($details['context'])) {
-            $output .= "Context:\n" . json_encode($details['context'], JSON_PRETTY_PRINT) . "\n";
+
+        // Detailed formatting of the log entry
+        $output = "Log Entry Details:\n\n";
+        $output .= "ID: {$entry->id}\n";
+        $output .= "Level: " . strtoupper($content['level'] ?? 'Unknown') . "\n";
+        $output .= "Message: " . ($content['message'] ?? 'Unknown') . "\n";
+
+        $createdAt = DateFormatter::format($entry->created_at);
+        $output .= "Created At: {$createdAt}\n\n";
+
+        // Context
+        if (!empty($content['context'])) {
+            $output .= "Context:\n" . json_encode($content['context'], JSON_PRETTY_PRINT) . "\n\n";
         }
-        
+
+        // Stack trace (if available)
+        if (!empty($content['context']['exception'])) {
+            $exception = $content['context']['exception'];
+            $output .= "Exception:\n";
+            $output .= "Class: " . ($exception['class'] ?? 'Unknown') . "\n";
+            $output .= "Message: " . ($exception['message'] ?? 'Unknown') . "\n";
+            if (!empty($exception['trace'])) {
+                $output .= "Stack Trace:\n" . implode("\n", array_slice($exception['trace'], 0, 10)) . "\n";
+                if (count($exception['trace']) > 10) {
+                    $output .= "... (truncated)\n";
+                }
+            }
+        }
+
         return $this->formatResponse($output);
     }
 } 

@@ -12,7 +12,7 @@ class EventsTool extends AbstractTool
     /**
      * Retorna o nome curto da ferramenta
      */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'events';
     }
@@ -20,7 +20,7 @@ class EventsTool extends AbstractTool
     /**
      * Retorna o esquema da ferramenta
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
@@ -67,7 +67,7 @@ class EventsTool extends AbstractTool
     /**
      * Executa a ferramenta com os parâmetros fornecidos
      */
-    public function execute($params)
+    public function execute(array $params): array
     {
         try {
             Logger::info($this->getName() . ' execute method called', ['params' => $params]);
@@ -91,7 +91,7 @@ class EventsTool extends AbstractTool
     /**
      * Lista os eventos registrados pelo Telescope
      */
-    protected function listEvents($params)
+    protected function listEvents(array $params): array
     {
         // Definir limite para a consulta
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
@@ -172,7 +172,7 @@ class EventsTool extends AbstractTool
     /**
      * Obtém detalhes de um evento específico
      */
-    protected function getEventDetails($id)
+    protected function getEventDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
         

@@ -4,57 +4,70 @@ namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 
+/**
+ * Tool for interacting with dump entries recorded by Telescope
+ */
 class DumpsTool extends AbstractTool
 {
+    /**
+     * @var EntriesRepository
+     */
     protected $entriesRepository;
 
+    /**
+     * DumpsTool constructor
+     * 
+     * @param EntriesRepository $entriesRepository The Telescope entries repository
+     */
     public function __construct(EntriesRepository $entriesRepository)
     {
         $this->entriesRepository = $entriesRepository;
     }
 
     /**
-     * Retorna o nome da ferramenta
-     *
+     * Returns the tool's short name
+     * 
      * @return string
      */
-    public function getName()
-    {
-        return $this->getShortName();
-    }
-
-    /**
-     * Retorna o nome curto da ferramenta
-     */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'dumps';
     }
 
     /**
-     * Retorna o esquema da ferramenta
+     * Returns the tool's schema
+     * 
+     * @return array
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
-            'description' => 'Lista e analisa dumps (saídas dd()) registrados pelo Telescope.',
+            'description' => 'Lists and analyzes dump entries recorded by Telescope.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'id' => [
                         'type' => 'string',
-                        'description' => 'ID do dump específico para ver detalhes'
+                        'description' => 'ID of the specific dump entry to view details'
                     ],
                     'limit' => [
                         'type' => 'integer',
-                        'description' => 'Número máximo de dumps a retornar',
+                        'description' => 'Maximum number of dump entries to return',
                         'default' => 50
                     ],
-                    // TODO: Adicionar filtros específicos para dumps se necessário (ex: por conteúdo)
+                    'file' => [
+                        'type' => 'string',
+                        'description' => 'Filter by file path'
+                    ],
+                    'line' => [
+                        'type' => 'integer',
+                        'description' => 'Filter by line number'
+                    ]
                 ],
                 'required' => []
             ],
@@ -76,17 +89,34 @@ class DumpsTool extends AbstractTool
                 'required' => ['content']
             ],
             'examples' => [
-                // Usage examples will be added in the future
+                [
+                    'description' => 'List last 10 dump entries',
+                    'params' => ['limit' => 10]
+                ],
+                [
+                    'description' => 'Get details of a specific dump entry',
+                    'params' => ['id' => '12345']
+                ],
+                [
+                    'description' => 'List dumps from a specific file',
+                    'params' => ['file' => 'app/Http/Controllers/HomeController.php']
+                ]
             ]
         ];
     }
 
-    public function execute($params)
+    /**
+     * Executes the tool with the given parameters
+     * 
+     * @param array $params Tool parameters
+     * @return array Response in MCP format
+     */
+    public function execute(array $params): array
     {
         Logger::info($this->getName() . ' execute method called', ['params' => $params]);
 
         try {
-            // Verificar se foi solicitado detalhes de um dump específico
+            // Check if details of a specific dump entry were requested
             if ($this->hasId($params)) {
                 return $this->getDumpDetails($params['id']);
             }
@@ -103,84 +133,82 @@ class DumpsTool extends AbstractTool
     }
 
     /**
-     * Lista os dumps registrados pelo Telescope
+     * Lists dump entries recorded by Telescope
+     * 
+     * @param array $params Query parameters
+     * @return array Response in MCP format
      */
-    protected function listDumps($params)
+    protected function listDumps(array $params): array
     {
-        // Definir limite para a consulta
+        // Set query limit
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
 
-        // Configurar opções
+        // Configure options
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // TODO: Adicionar filtros específicos para dumps se necessário
+        // Add filters if specified
+        if (!empty($params['file'])) {
+            $options->tag('file:' . $params['file']);
+        }
+        if (!empty($params['line'])) {
+            $options->tag('line:' . $params['line']);
+        }
 
-        // Buscar entradas usando o repositório
+        // Fetch entries using the repository
         $entries = $this->entriesRepository->get(EntryType::DUMP, $options);
 
         if (empty($entries)) {
-            return $this->formatResponse("Nenhum dump encontrado.");
+            return $this->formatResponse("No dump entries found.");
         }
 
         $dumps = [];
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $createdAt = DateFormatter::format($entry->created_at);
 
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in DumpsTool::listDumps', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            }
-
-            // TODO: Extrair informações relevantes do dump (ex: conteúdo, arquivo, linha)
+            // Extract relevant information from the dump entry
             $file = $content['file'] ?? 'Unknown';
-            $line = $content['line'] ?? 'Unknown';
-            $htmlDump = $content['html_dump'] ?? 'No content'; // O dump formatado em HTML
-            $abstract = substr(strip_tags($htmlDump), 0, 100) . (strlen(strip_tags($htmlDump)) > 100 ? '...' : ''); // Exibir um resumo
+            $line = $content['line'] ?? 0;
+            $dump = $content['dump'] ?? 'Empty dump';
+
+            // Format dump content for display
+            if (is_array($dump) || is_object($dump)) {
+                $dump = json_encode($dump);
+            }
+            if (strlen($dump) > 50) {
+                $dump = substr($dump, 0, 47) . "...";
+            }
 
             $dumps[] = [
                 'id' => $entry->id,
                 'file' => $file,
                 'line' => $line,
-                'abstract' => $abstract,
+                'dump' => $dump,
                 'created_at' => $createdAt
             ];
         }
 
-        // Formatação tabular para facilitar a leitura
-        $table = "Dumps:\n\n";
-        $table .= sprintf("%-5s %-40s %-8s %-50s %-20s\n", "ID", "File", "Line", "Abstract", "Created At");
-        $table .= str_repeat("-", 125) . "\n"; // Ajustar largura da linha separadora
+        // Tabular formatting for better readability
+        $table = "Dump Entries:\n\n";
+        $table .= sprintf("%-5s %-40s %-6s %-50s %-20s\n", 
+            "ID", "File", "Line", "Content", "Created At");
+        $table .= str_repeat("-", 125) . "\n";
 
         foreach ($dumps as $dump) {
-             // Truncar file se muito longo
+            // Truncate file path if too long
             $file = $dump['file'];
             if (strlen($file) > 40) {
                 $file = "..." . substr($file, -37);
             }
 
             $table .= sprintf(
-                "%-5s %-40s %-8s %-50s %-20s\n",
+                "%-5s %-40s %-6s %-50s %-20s\n",
                 $dump['id'],
                 $file,
                 $dump['line'],
-                $dump['abstract'],
+                $dump['dump'],
                 $dump['created_at']
             );
         }
@@ -189,52 +217,44 @@ class DumpsTool extends AbstractTool
     }
 
     /**
-     * Obtém detalhes de um dump específico
+     * Gets details of a specific dump entry
+     * 
+     * @param string $id The dump entry ID
+     * @return array Response in MCP format
      */
-    protected function getDumpDetails($id)
+    protected function getDumpDetails(string $id): array
     {
-        // Implemente a lógica para obter detalhes de um dump específico com base no ID
-        // Isso pode envolver buscar o dump no repositório ou em outra fonte de dados
-        // Retorne um array com os detalhes do dump
-
-        // Exemplo de como obter a entrada e tratar created_at (a ser adaptado):
-        /*
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
+
+        // Fetch the specific entry
         $entry = $this->getEntryDetails(EntryType::DUMP, $id);
 
         if (!$entry) {
-            return $this->formatError("Dump não encontrado: {$id}");
+            return $this->formatError("Dump entry not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
-                    }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in DumpsTool::getDumpDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
-                }
+
+        // Detailed formatting of the dump entry
+        $output = "Dump Entry Details:\n\n";
+        $output .= "ID: {$entry->id}\n";
+        $output .= "File: " . ($content['file'] ?? 'Unknown') . "\n";
+        $output .= "Line: " . ($content['line'] ?? 'Unknown') . "\n";
+
+        $createdAt = DateFormatter::format($entry->created_at);
+        $output .= "Created At: {$createdAt}\n\n";
+
+        // Dump content
+        $dump = $content['dump'] ?? null;
+        if ($dump !== null) {
+            $output .= "Content:\n";
+            if (is_array($dump) || is_object($dump)) {
+                $output .= json_encode($dump, JSON_PRETTY_PRINT) . "\n";
+            } else {
+                $output .= $dump . "\n";
             }
         }
 
-        $output = "Dump Details:\n\n";
-        $output .= "ID: {$entry->id}\n";
-        $output .= "Created At: {$createdAt}\n";
-        // Adicionar outros detalhes do dump
-        $output .= "Content: " . json_encode($content, JSON_PRETTY_PRINT) . "\n";
-
         return $this->formatResponse($output);
-        */
-        return $this->formatError("getDumpDetails not fully implemented yet.");
     }
 } 

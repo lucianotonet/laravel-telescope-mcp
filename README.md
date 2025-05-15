@@ -164,6 +164,58 @@ return [
    - Large context arrays are automatically pretty-printed for better readability
    - Some log entries might have empty context arrays if not properly structured
 
+## Contributing
+
+Contributions are welcome! Here's how you can help:
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+### Development Setup
+
+1. Clone your fork:
+```bash
+git clone https://github.com/YOUR_USERNAME/laravel-telescope-mcp.git
+cd laravel-telescope-mcp
+```
+
+2. Install dependencies:
+```bash
+composer install
+```
+
+3. Run tests:
+```bash
+vendor/bin/phpunit
+```
+
+### Code Style
+
+This project follows the PSR-12 coding standard. To ensure your code follows the standard:
+
+1. Install PHP CS Fixer:
+```bash
+composer require --dev friendsofphp/php-cs-fixer
+```
+
+2. Run the fixer:
+```bash
+vendor/bin/php-cs-fixer fix
+```
+
+### Reporting Issues
+
+If you find a bug or have a suggestion for improvement:
+
+1. Check if the issue already exists in the [GitHub Issues](https://github.com/lucianotonet/laravel-telescope-mcp/issues)
+2. If not, create a new issue with:
+   - A clear title and description
+   - As much relevant information as possible
+   - A code sample or test case demonstrating the issue
+
 ## License
 
 This package is open-sourced software licensed under the MIT license. 

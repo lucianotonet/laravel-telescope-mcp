@@ -12,7 +12,7 @@ class HttpClientTool extends AbstractTool
     /**
      * Retorna o nome curto da ferramenta
      */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'http-client';
     }
@@ -20,7 +20,7 @@ class HttpClientTool extends AbstractTool
     /**
      * Retorna o esquema da ferramenta
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
@@ -76,7 +76,7 @@ class HttpClientTool extends AbstractTool
     /**
      * Executa a ferramenta com os parâmetros fornecidos
      */
-    public function execute($params)
+    public function execute(array $params): array
     {
         try {
             Logger::info($this->getName() . ' execute method called', ['params' => $params]);
@@ -100,7 +100,7 @@ class HttpClientTool extends AbstractTool
     /**
      * Lista as requisições HTTP registradas pelo Telescope
      */
-    protected function listRequests($params)
+    protected function listRequests(array $params): array
     {
         // Definir limite para a consulta
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
@@ -180,7 +180,7 @@ class HttpClientTool extends AbstractTool
     /**
      * Obtém detalhes de uma requisição HTTP específica
      */
-    protected function getRequestDetails($id)
+    protected function getRequestDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
         

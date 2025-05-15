@@ -12,7 +12,7 @@ class QueriesTool extends AbstractTool
     /**
      * Retorna o nome curto da ferramenta
      */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'queries';
     }
@@ -20,7 +20,7 @@ class QueriesTool extends AbstractTool
     /**
      * Retorna o esquema da ferramenta
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
@@ -68,7 +68,7 @@ class QueriesTool extends AbstractTool
     /**
      * Executa a ferramenta com os parâmetros fornecidos
      */
-    public function execute($params)
+    public function execute(array $params): array
     {
         try {
             Logger::info($this->getName() . ' execute method called', ['params' => $params]);
@@ -92,7 +92,7 @@ class QueriesTool extends AbstractTool
     /**
      * Lista as queries registradas pelo Telescope
      */
-    protected function listQueries($params)
+    protected function listQueries(array $params): array
     {
         // Definir limite para a consulta
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
@@ -177,7 +177,7 @@ class QueriesTool extends AbstractTool
     /**
      * Obtém detalhes de uma query específica
      */
-    protected function getQueryDetails($id)
+    protected function getQueryDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
         

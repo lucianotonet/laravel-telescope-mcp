@@ -1,6 +1,24 @@
 {
-    "name": "luciano-tonet/laravel-telescope-mcp",
+    "name": "lucianotonet/laravel-telescope-mcp",
     "description": "MCP Server extension for Laravel Telescope",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Luciano Tonet",
+            "email": "tonetlds@gmail.com",
+            "homepage": "https://luciano.tonet.dev",
+            "role": "Developer"
+        }
+    ],
+    "keywords": [
+        "laravel",
+        "telescope",
+        "mcp",
+        "developer-tools",
+        "debugging",
+        "monitoring",
+        "cursor"
+    ],
     "require": {
         "php": "^8.1",
         "laravel/framework": "^10.0|^11.0|^12.0",

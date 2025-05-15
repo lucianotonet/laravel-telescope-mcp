@@ -4,63 +4,65 @@ namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 
+/**
+ * Tool for interacting with Redis operations recorded by Telescope
+ */
 class RedisTool extends AbstractTool
 {
+    /**
+     * @var EntriesRepository
+     */
     protected $entriesRepository;
 
+    /**
+     * RedisTool constructor
+     * 
+     * @param EntriesRepository $entriesRepository The Telescope entries repository
+     */
     public function __construct(EntriesRepository $entriesRepository)
     {
         $this->entriesRepository = $entriesRepository;
     }
 
     /**
-     * Retorna o nome da ferramenta
-     *
+     * Returns the tool's short name
+     * 
      * @return string
      */
-    public function getName()
-    {
-        return $this->getShortName();
-    }
-
-    /**
-     * Retorna o nome curto da ferramenta
-     */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'redis';
     }
 
     /**
-     * Retorna o esquema da ferramenta
+     * Returns the tool's schema
+     * 
+     * @return array
      */
-    public function getSchema()
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
-            'description' => 'Lista e analisa comandos Redis registrados pelo Telescope.',
+            'description' => 'Lists and analyzes Redis operations recorded by Telescope.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'id' => [
                         'type' => 'string',
-                        'description' => 'ID do comando Redis específico para ver detalhes'
+                        'description' => 'ID of the specific Redis operation to view details'
                     ],
                     'limit' => [
                         'type' => 'integer',
-                        'description' => 'Número máximo de comandos Redis a retornar',
+                        'description' => 'Maximum number of Redis operations to return',
                         'default' => 50
                     ],
                     'command' => [
                         'type' => 'string',
-                        'description' => 'Filtrar por nome do comando Redis (ex: GET, SET)'
-                    ],
-                    'key' => [
-                        'type' => 'string',
-                        'description' => 'Filtrar por chave Redis (busca parcial)'
+                        'description' => 'Filter by Redis command (e.g., GET, SET, DEL)'
                     ]
                 ],
                 'required' => []
@@ -83,22 +85,39 @@ class RedisTool extends AbstractTool
                 'required' => ['content']
             ],
             'examples' => [
-                // Usage examples will be added in the future
+                [
+                    'description' => 'List last 10 Redis operations',
+                    'params' => ['limit' => 10]
+                ],
+                [
+                    'description' => 'Get details of a specific Redis operation',
+                    'params' => ['id' => '12345']
+                ],
+                [
+                    'description' => 'List all SET operations',
+                    'params' => ['command' => 'SET']
+                ]
             ]
         ];
     }
 
-    public function execute($params)
+    /**
+     * Executes the tool with the given parameters
+     * 
+     * @param array $params Tool parameters
+     * @return array Response in MCP format
+     */
+    public function execute(array $params): array
     {
         Logger::info($this->getName() . ' execute method called', ['params' => $params]);
 
         try {
-            // Verificar se foi solicitado detalhes de um comando Redis específico
+            // Check if details of a specific Redis operation were requested
             if ($this->hasId($params)) {
-                return $this->getRedisCommandDetails($params['id']);
+                return $this->getRedisDetails($params['id']);
             }
 
-            return $this->listRedisCommands($params);
+            return $this->listRedisOperations($params);
         } catch (\Exception $e) {
             Logger::error($this->getName() . ' execution error', [
                 'error' => $e->getMessage(),
@@ -110,99 +129,75 @@ class RedisTool extends AbstractTool
     }
 
     /**
-     * Lista os comandos Redis registrados pelo Telescope
+     * Lists Redis operations recorded by Telescope
+     * 
+     * @param array $params Query parameters
+     * @return array Response in MCP format
      */
-    protected function listRedisCommands($params)
+    protected function listRedisOperations(array $params): array
     {
-        // Definir limite para a consulta
+        // Set query limit
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
 
-        // Configurar opções
+        // Configure options
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Adicionar filtros se especificados
+        // Add filters if specified
         if (!empty($params['command'])) {
-            // Telescope armazena o comando como tag no formato 'redis:COMANDO'
-            $options->tag('redis:' . strtoupper($params['command']));
-        }
-        if (!empty($params['key'])) {
-            // Telescope armazena a chave como tag no formato 'redis-key:chave'
-            $options->tag('redis-key:' . $params['key']);
+            $options->tag('command:' . strtoupper($params['command']));
         }
 
-        // Buscar entradas usando o repositório
+        // Fetch entries using the repository
         $entries = $this->entriesRepository->get(EntryType::REDIS, $options);
 
         if (empty($entries)) {
-            return $this->formatResponse("Nenhum comando Redis encontrado.");
+            return $this->formatResponse("No Redis operations found.");
         }
 
-        $redisCommands = [];
+        $operations = [];
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $createdAt = DateFormatter::format($entry->created_at);
 
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in RedisTool::listRedisCommands', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            }
-
-            // TODO: Extrair informações relevantes do comando Redis (ex: comando, chave, duração, connection)
+            // Extract relevant information from the Redis operation
             $command = $content['command'] ?? 'Unknown';
-            // A chave pode estar em diferentes formatos dependendo do comando
-            $key = 'N/A';
-            if (isset($content['key'])) {
-                 $key = is_array($content['key']) ? json_encode($content['key']) : $content['key'];
-            } elseif (isset($content['keys']) && is_array($content['keys'])) {
-                 $key = implode(', ', $content['keys']);
-            }
+            $parameters = $content['parameters'] ?? [];
+            $duration = $content['duration'] ?? 0;
 
-            $redisCommands[] = [
+            $operations[] = [
                 'id' => $entry->id,
                 'command' => $command,
-                'key' => $key,
-                'duration' => $content['time'] ?? 0,
-                'connection' => $content['connection'] ?? 'default',
+                'parameters' => $parameters,
+                'duration' => $duration,
                 'created_at' => $createdAt
             ];
         }
 
-        // Formatação tabular para facilitar a leitura
-        $table = "Redis Commands:\n\n";
-        $table .= sprintf("%-5s %-15s %-40s %-10s %-15s %-20s\n", "ID", "Command", "Key", "Duration", "Connection", "Created At");
-        $table .= str_repeat("-", 110) . "\n";
+        // Tabular formatting for better readability
+        $table = "Redis Operations:\n\n";
+        $table .= sprintf("%-5s %-15s %-50s %-10s %-20s\n", 
+            "ID", "Command", "Parameters", "Time (ms)", "Created At");
+        $table .= str_repeat("-", 120) . "\n";
 
-        foreach ($redisCommands as $cmd) {
-             // Truncar key se muito longa
-            $key = $cmd['key'];
-            if (strlen($key) > 40) {
-                $key = substr($key, 0, 37) . "...";
+        foreach ($operations as $op) {
+            // Format parameters for display
+            $params = implode(' ', array_map(function($param) {
+                return strlen($param) > 20 ? substr($param, 0, 17) . "..." : $param;
+            }, $op['parameters']));
+
+            if (strlen($params) > 50) {
+                $params = substr($params, 0, 47) . "...";
             }
 
             $table .= sprintf(
-                "%-5s %-15s %-40s %-10s %-15s %-20s\n",
-                $cmd['id'],
-                $cmd['command'],
-                $key,
-                number_format($cmd['duration'], 2) . "ms",
-                $cmd['connection'],
-                $cmd['created_at']
+                "%-5s %-15s %-50s %-10s %-20s\n",
+                $op['id'],
+                $op['command'],
+                $params,
+                number_format($op['duration'], 2),
+                $op['created_at']
             );
         }
 
@@ -210,65 +205,51 @@ class RedisTool extends AbstractTool
     }
 
     /**
-     * Obtém detalhes de um comando Redis específico
+     * Gets details of a specific Redis operation
+     * 
+     * @param string $id The Redis operation ID
+     * @return array Response in MCP format
      */
-    protected function getRedisCommandDetails($id)
+    protected function getRedisDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
 
-        // Buscar a entrada específica
+        // Fetch the specific entry
         $entry = $this->getEntryDetails(EntryType::REDIS, $id);
 
         if (!$entry) {
-            return $this->formatError("Comando Redis não encontrado: {$id}");
+            return $this->formatError("Redis operation not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
 
-        // Formatação detalhada do comando Redis
-        $output = "Redis Command Details:\n\n";
+        // Detailed formatting of the Redis operation
+        $output = "Redis Operation Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Command: " . ($content['command'] ?? 'Unknown') . "\n";
+        $output .= "Duration: " . number_format(($content['duration'] ?? 0), 2) . " ms\n";
 
-        // Chave(s) - pode ser string ou array
-        $key = 'N/A';
-        if (isset($content['key'])) {
-             $key = is_array($content['key']) ? json_encode($content['key'], JSON_UNESCAPED_UNICODE) : $content['key'];
-        } elseif (isset($content['keys']) && is_array($content['keys'])) {
-             $key = json_encode($content['keys'], JSON_UNESCAPED_UNICODE);
-        }
-        $output .= "Key(s): {$key}\n";
-
-        // Valores (para comandos como SET, MSET, etc.)
-        if (isset($content['value'])) {
-            $output .= "Value: " . (is_array($content['value']) ? json_encode($content['value'], JSON_UNESCAPED_UNICODE) : $content['value']) . "\n";
-        }
-
-        $output .= "Duration: " . (isset($content['time']) ? number_format($content['time'], 2) . "ms" : 'Unknown') . "\n";
-        $output .= "Connection: " . ($content['connection'] ?? 'default') . "\n";
-
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
-                    }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in RedisTool::getRedisCommandDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-        }
+        $createdAt = DateFormatter::format($entry->created_at);
         $output .= "Created At: {$createdAt}\n\n";
 
-        // TODO: Adicionar outros detalhes relevantes se existirem (ex: argumentos completos, opções)
+        // Parameters
+        if (!empty($content['parameters'])) {
+            $output .= "Parameters:\n";
+            foreach ($content['parameters'] as $index => $param) {
+                $output .= sprintf("%d: %s\n", $index + 1, $param);
+            }
+            $output .= "\n";
+        }
+
+        // Connection
+        if (!empty($content['connection'])) {
+            $output .= "Connection: " . $content['connection'] . "\n\n";
+        }
+
+        // Result (if available)
+        if (isset($content['result'])) {
+            $output .= "Result:\n" . json_encode($content['result'], JSON_PRETTY_PRINT) . "\n";
+        }
 
         return $this->formatResponse($output);
     }

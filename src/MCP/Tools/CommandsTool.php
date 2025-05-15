@@ -4,55 +4,70 @@ namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 
+/**
+ * Tool for interacting with command executions recorded by Telescope
+ */
 class CommandsTool extends AbstractTool
 {
+    /**
+     * @var EntriesRepository
+     */
     protected $entriesRepository;
 
+    /**
+     * CommandsTool constructor
+     * 
+     * @param EntriesRepository $entriesRepository The Telescope entries repository
+     */
     public function __construct(EntriesRepository $entriesRepository)
     {
         $this->entriesRepository = $entriesRepository;
     }
 
-    public function getName()
-    {
-        return $this->getShortName();
-    }
-
     /**
-     * Retorna o nome curto da ferramenta
+     * Returns the tool's short name
+     * 
+     * @return string
      */
-    public function getShortName()
+    public function getShortName(): string
     {
         return 'commands';
     }
 
-    public function getSchema()
+    /**
+     * Returns the tool's schema
+     * 
+     * @return array
+     */
+    public function getSchema(): array
     {
         return [
             'name' => $this->getName(),
-            'description' => 'Lista e analisa comandos de console registrados pelo Telescope.',
+            'description' => 'Lists and analyzes command executions recorded by Telescope.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => [
                     'id' => [
                         'type' => 'string',
-                        'description' => 'ID do comando específico para ver detalhes'
+                        'description' => 'ID of the specific command execution to view details'
                     ],
                     'limit' => [
                         'type' => 'integer',
-                        'description' => 'Número máximo de comandos a retornar',
+                        'description' => 'Maximum number of command executions to return',
                         'default' => 50
                     ],
                     'command' => [
                         'type' => 'string',
-                        'description' => 'Filtrar por nome do comando'
+                        'description' => 'Filter by command name'
                     ],
-                    'exit_code' => [
-                        'type' => 'integer',
-                        'description' => 'Filtrar por código de saída do comando'
+                    'status' => [
+                        'type' => 'string',
+                        'description' => 'Filter by execution status (success, error)',
+                        'enum' => ['success', 'error']
                     ]
                 ],
                 'required' => []
@@ -75,17 +90,34 @@ class CommandsTool extends AbstractTool
                 'required' => ['content']
             ],
             'examples' => [
-                // Usage examples will be added in the future
+                [
+                    'description' => 'List last 10 command executions',
+                    'params' => ['limit' => 10]
+                ],
+                [
+                    'description' => 'Get details of a specific command execution',
+                    'params' => ['id' => '12345']
+                ],
+                [
+                    'description' => 'List failed command executions',
+                    'params' => ['status' => 'error']
+                ]
             ]
         ];
     }
 
-    public function execute($params)
+    /**
+     * Executes the tool with the given parameters
+     * 
+     * @param array $params Tool parameters
+     * @return array Response in MCP format
+     */
+    public function execute(array $params): array
     {
         Logger::info($this->getName() . ' execute method called', ['params' => $params]);
 
         try {
-            // Verificar se foi solicitado detalhes de um comando específico
+            // Check if details of a specific command execution were requested
             if ($this->hasId($params)) {
                 return $this->getCommandDetails($params['id']);
             }
@@ -102,85 +134,95 @@ class CommandsTool extends AbstractTool
     }
 
     /**
-     * Lista os comandos de console registrados pelo Telescope
+     * Lists command executions recorded by Telescope
+     * 
+     * @param array $params Query parameters
+     * @return array Response in MCP format
      */
-    protected function listCommands($params)
+    protected function listCommands(array $params): array
     {
-        // Definir limite para a consulta
+        // Set query limit
         $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
 
-        // Configurar opções
+        // Configure options
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Adicionar filtros se especificados
+        // Add filters if specified
         if (!empty($params['command'])) {
-            $options->tag($params['command']);
+            $options->tag('command:' . $params['command']);
         }
-        // TODO: Adicionar filtro por exit_code se necessário. Requer explorar como o Telescope armazena isso.
-        // if (isset($params['exit_code'])) {
-        //     $options->tag('exit:' . $params['exit_code']);
-        // }
+        if (!empty($params['status'])) {
+            $options->tag('status:' . $params['status']);
+        }
 
-        // Buscar entradas usando o repositório
+        // Fetch entries using the repository
         $entries = $this->entriesRepository->get(EntryType::COMMAND, $options);
 
         if (empty($entries)) {
-            return $this->formatResponse("Nenhum comando encontrado.");
+            return $this->formatResponse("No command executions found.");
         }
 
         $commands = [];
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $createdAt = DateFormatter::format($entry->created_at);
 
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in CommandsTool::listCommands', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
+            // Extract relevant information from the command execution
+            $command = $content['command'] ?? 'Unknown';
+            $exitCode = $content['exit_code'] ?? null;
+            $status = $exitCode === 0 ? 'Success' : ($exitCode === null ? 'Unknown' : 'Error');
+            $arguments = $content['arguments'] ?? [];
+            $options = $content['options'] ?? [];
+
+            // Format arguments and options for display
+            $argsStr = empty($arguments) ? '' : implode(' ', $arguments);
+            $optsStr = '';
+            foreach ($options as $key => $value) {
+                if (is_bool($value)) {
+                    $optsStr .= $value ? " --{$key}" : '';
+                } else {
+                    $optsStr .= " --{$key}=" . (is_array($value) ? implode(',', $value) : $value);
                 }
             }
 
             $commands[] = [
                 'id' => $entry->id,
-                'command' => $content['command'] ?? 'Unknown',
-                'exit_code' => $content['exit_code'] ?? 'N/A',
-                'duration' => $content['duration'] ?? 0,
+                'command' => $command,
+                'args' => $argsStr,
+                'opts' => $optsStr,
+                'status' => $status,
+                'exit_code' => $exitCode,
                 'created_at' => $createdAt
             ];
         }
 
-        // Formatação tabular para facilitar a leitura
-        $table = "Commands:\n\n";
-        $table .= sprintf("%-5s %-40s %-10s %-10s %-20s\n", "ID", "Command", "Exit Code", "Duration", "Created At");
-        $table .= str_repeat("-", 90) . "\n";
+        // Tabular formatting for better readability
+        $table = "Command Executions:\n\n";
+        $table .= sprintf("%-5s %-20s %-40s %-10s %-20s\n", 
+            "ID", "Command", "Arguments/Options", "Status", "Created At");
+        $table .= str_repeat("-", 100) . "\n";
 
         foreach ($commands as $cmd) {
-            // Truncar comando longo
-            $command = $cmd['command'];
-            if (strlen($command) > 40) {
-                $command = substr($command, 0, 37) . "...";
+            // Combine args and opts, truncate if too long
+            $params = trim($cmd['args'] . ' ' . $cmd['opts']);
+            if (strlen($params) > 40) {
+                $params = substr($params, 0, 37) . "...";
+            }
+
+            // Format status with indicator
+            $statusStr = $cmd['status'];
+            if ($statusStr === 'Error') {
+                $statusStr .= " [{$cmd['exit_code']}]";
             }
 
             $table .= sprintf(
-                "%-5s %-40s %-10s %-10s %-20s\n",
+                "%-5s %-20s %-40s %-10s %-20s\n",
                 $cmd['id'],
-                $command,
-                $cmd['exit_code'],
-                number_format($cmd['duration'], 2) . "ms",
+                $cmd['command'],
+                $params,
+                $statusStr,
                 $cmd['created_at']
             );
         }
@@ -189,66 +231,62 @@ class CommandsTool extends AbstractTool
     }
 
     /**
-     * Obtém detalhes de um comando específico
+     * Gets details of a specific command execution
+     * 
+     * @param string $id The command execution ID
+     * @return array Response in MCP format
      */
-    protected function getCommandDetails($id)
+    protected function getCommandDetails(string $id): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
 
-        // Buscar a entrada específica
+        // Fetch the specific entry
         $entry = $this->getEntryDetails(EntryType::COMMAND, $id);
 
         if (!$entry) {
-            return $this->formatError("Comando não encontrado: {$id}");
+            return $this->formatError("Command execution not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
 
-        // Formatação detalhada do comando
-        $output = "Command Details:\n\n";
+        // Detailed formatting of the command execution
+        $output = "Command Execution Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Command: " . ($content['command'] ?? 'Unknown') . "\n";
-        $output .= "Exit Code: " . ($content['exit_code'] ?? 'N/A') . "\n";
-        $output .= "Duration: " . (isset($content['duration']) ? number_format($content['duration'], 2) . "ms" : 'Unknown') . "\n";
-        $output .= "Memory: " . (isset($content['memory']) ? number_format($content['memory'] / 1024 / 1024, 2) . "MB" : 'Unknown') . "\n";
 
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
-                    }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in CommandsTool::getCommandDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-        }
-        $output .= "Created At: {$createdAt}\n\n";
-
-        // Argumentos
-        if (isset($content['arguments']) && !empty($content['arguments'])) {
+        // Arguments
+        if (!empty($content['arguments'])) {
             $output .= "Arguments:\n";
-            foreach ($content['arguments'] as $key => $value) {
-                $output .= "- {$key}: " . (is_array($value) ? json_encode($value) : $value) . "\n";
+            foreach ($content['arguments'] as $arg) {
+                $output .= "  - {$arg}\n";
             }
             $output .= "\n";
         }
 
-        // Opções
-        if (isset($content['options']) && !empty($content['options'])) {
+        // Options
+        if (!empty($content['options'])) {
             $output .= "Options:\n";
             foreach ($content['options'] as $key => $value) {
-                $output .= "- {$key}: " . (is_array($value) ? json_encode($value) : $value) . "\n";
+                if (is_bool($value)) {
+                    $output .= $value ? "  --{$key}\n" : '';
+                } else {
+                    $output .= "  --{$key}=" . (is_array($value) ? implode(',', $value) : $value) . "\n";
+                }
             }
             $output .= "\n";
+        }
+
+        // Status and exit code
+        $exitCode = $content['exit_code'] ?? null;
+        $output .= "Exit Code: " . ($exitCode === null ? 'Unknown' : $exitCode) . "\n";
+        $output .= "Status: " . ($exitCode === 0 ? 'Success' : ($exitCode === null ? 'Unknown' : 'Error')) . "\n";
+
+        $createdAt = DateFormatter::format($entry->created_at);
+        $output .= "Created At: {$createdAt}\n\n";
+
+        // Output
+        if (!empty($content['output'])) {
+            $output .= "Output:\n" . $content['output'] . "\n";
         }
 
         return $this->formatResponse($output);
