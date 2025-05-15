@@ -86,10 +86,10 @@ jobs:
           composer_name=$(jq -r '.name' "$COMPOSER_FILE_PATH")
           echo "Notifying Packagist about new version for $composer_name..."
           payload="{\"repository\":{\"url\":\"https://github.com/${GITHUB_REPOSITORY}\"}}"
-          response_code=$(curl -w "%{http_code}" -X POST \\
-            -H "Content-type:application/json" \\
-            "https://packagist.org/api/update-package?username=${PACKAGIST_USER_NAME}&apiToken=${PACKAGIST_API_TOKEN}" \\
-            -d "$payload" \\
+          response_code=$(curl -w "%{http_code}" -X POST \
+            -H "Content-type:application/json" \
+            "https://packagist.org/api/update-package?username=${PACKAGIST_USER_NAME}&apiToken=${PACKAGIST_API_TOKEN}" \
+            -d "$payload" \
             -o response.txt)
           cat response.txt
           if [ "$response_code" -ne 202 ] && [ "$response_code" -ne 200 ]; then
