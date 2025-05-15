@@ -5,141 +5,45 @@ namespace LucianoTonet\TelescopeMcp\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use LucianoTonet\TelescopeMcp\MCP\TelescopeMcpServer;
+use LucianoTonet\TelescopeMcp\Support\JsonRpcResponse;
 use LucianoTonet\TelescopeMcp\Support\Logger;
 
 class McpController extends Controller
 {
+    const TOOL_PREFIX = 'mcp_Laravel_Telescope_MCP_';
+
     protected $server;
     
     public function __construct(TelescopeMcpServer $server)
     {
         $this->server = $server;
     }
+
+    private function getFullToolName(string $toolName = null): ?string
+    {
+        if (!$toolName) {
+            return null;
+        }
+        if (strpos($toolName, self::TOOL_PREFIX) !== 0) {
+            return self::TOOL_PREFIX . $toolName;
+        }
+        return $toolName;
+    }
     
     public function manifest(Request $request)
     {
         Logger::info('MCP request received', [
             'method' => $request->method(),
-            'input' => $request->all()
+            'uri' => $request->fullUrl(),
+            'input_all' => $request->all(), // Be careful with large inputs
+            'content_type' => $request->header('Content-Type'),
+            'raw_content_preview' => substr($request->getContent(), 0, 200)
         ]);
         
-        // Se for uma requisição GET, retornar o manifesto diretamente
+        // Handle GET requests for manifest
         if ($request->method() === 'GET') {
             $manifest = $this->server->getManifest();
-            
-            return response()->json([
-                'jsonrpc' => '2.0',
-                'result' => [
-                    'protocolVersion' => '2024-11-05',
-                    'serverInfo' => [
-                        'name' => $manifest['name'],
-                        'version' => $manifest['version'],
-                        'description' => $manifest['description']
-                    ],
-                    'capabilities' => [
-                        'tools' => $manifest['tools']
-                    ]
-                ]
-            ]);
-        }
-        
-        // Verificar se é uma requisição JSON-RPC 2.0
-        if ($request->isJson() && $request->input('jsonrpc') === '2.0') {
-            $method = $request->input('method');
-            $id = $request->input('id', null);
-            $params = $request->input('params', []);
-            
-            Logger::info('JSON-RPC request', [
-                'method' => $method,
-                'id' => $id,
-                'params' => $params
-            ]);
-            
-            switch ($method) {
-                case 'mcp.manifest':
-                case 'mcp.getManifest':
-                case 'initialize':
-                    // Retornar informações sobre o servidor MCP
-                    $manifest = $this->server->getManifest();
-                    
-                    return response()->json([
-                        'jsonrpc' => '2.0',
-                        'id' => $id,
-                        'result' => [
-                            'protocolVersion' => '2024-11-05',
-                            'serverInfo' => [
-                                'name' => $manifest['name'],
-                                'version' => $manifest['version'],
-                                'description' => $manifest['description']
-                            ],
-                            'capabilities' => [
-                                'tools' => $manifest['tools']
-                            ]
-                        ]
-                    ]);
-                
-                case 'tools/list':
-                    // Retornar lista de ferramentas disponíveis
-                    $manifest = $this->server->getManifest();
-                    
-                    return response()->json([
-                        'jsonrpc' => '2.0',
-                        'id' => $id,
-                        'result' => [
-                            'tools' => array_values((array) $manifest['tools']) // Convert to array only for tools/list
-                        ]
-                    ]);
-                
-                case 'tools/call':
-                    // Executar uma ferramenta
-                    $toolName = $params['name'] ?? null;
-                    $arguments = $params['arguments'] ?? [];
-                    
-                    if (!$toolName) {
-                        return $this->jsonRpcError($id, -32602, 'Invalid params: tool name is required');
-                    }
-                    
-                    Logger::info('Executing tool via JSON-RPC', [
-                        'tool' => $toolName,
-                        'arguments' => $arguments
-                    ]);
-                    
-                    try {
-                        $result = $this->server->executeTool($toolName, $arguments);
-                        
-                        // Garantir que a resposta esteja no formato correto
-                        if (!isset($result['content'])) {
-                            $result = [
-                                'content' => [
-                                    [
-                                        'type' => 'text',
-                                        'text' => is_string($result) ? $result : json_encode($result, JSON_PRETTY_PRINT)
-                                    ]
-                                ]
-                            ];
-                        }
-                        
-                        return response()->json([
-                            'jsonrpc' => '2.0',
-                            'id' => $id,
-                            'result' => $result
-                        ]);
-                    } catch (\Exception $e) {
-                        return $this->jsonRpcError($id, -32603, $e->getMessage());
-                    }
-                
-                default:
-                    // Método não suportado
-                    return $this->jsonRpcError($id, -32601, "Method not found: {$method}");
-            }
-        }
-        
-        // Se não for uma requisição JSON-RPC, retornar o manifesto
-        $manifest = $this->server->getManifest();
-        
-        return response()->json([
-            'jsonrpc' => '2.0',
-            'result' => [
+            return response()->json(JsonRpcResponse::success([
                 'protocolVersion' => '2024-11-05',
                 'serverInfo' => [
                     'name' => $manifest['name'],
@@ -149,8 +53,156 @@ class McpController extends Controller
                 'capabilities' => [
                     'tools' => $manifest['tools']
                 ]
-            ]
+            ]));
+        }
+        
+        // For POST requests, expect JSON-RPC
+        if (!$request->isJson()) {
+            Logger::warning('MCP request: Content-Type is not JSON.', ['content_type' => $request->header('Content-Type')]);
+            return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::PARSE_ERROR, 'Parse error: Content-Type must be application/json.', null, null),
+                400
+            );
+        }
+
+        $rawContent = $request->getContent();
+        if (empty($rawContent)) {
+            Logger::warning('MCP request: Empty JSON body.');
+            return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::INVALID_REQUEST, 'Invalid Request: Empty JSON body.', null, null),
+                400
+            );
+        }
+
+        $decoded = json_decode($rawContent, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            Logger::warning('MCP request: JSON parse error.', ['json_error' => json_last_error_msg(), 'raw_content' => $rawContent]);
+            return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::PARSE_ERROR, 'Parse error: Invalid JSON in request body. Error: ' . json_last_error_msg(), null, null),
+                400
+            );
+        }
+
+        if (!is_array($decoded)) {
+            Logger::warning('MCP request: Decoded JSON is not an array/object.', ['decoded_type' => gettype($decoded)]);
+             return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::INVALID_REQUEST, 'Invalid Request: JSON body must be an object.', null, null),
+                400
+            );
+        }
+
+        $jsonrpc = $decoded['jsonrpc'] ?? null;
+        $id = $decoded['id'] ?? null; // ID can be string, number, or null. It's fine if it's not present for notifications.
+        $method = $decoded['method'] ?? null;
+        $params = $decoded['params'] ?? []; // Params should be an array or object, default to array.
+
+        if ($jsonrpc !== '2.0') {
+            Logger::warning('MCP request: Invalid JSON-RPC version.', ['version_received' => $jsonrpc]);
+            return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::INVALID_REQUEST, 'Invalid JSON-RPC version. Must be \'2.0\'.', null, $id),
+                400
+            );
+        }
+
+        if (empty($method) || !is_string($method)) {
+            Logger::warning('MCP request: Missing or invalid method.', ['method_received' => $method]);
+            return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::INVALID_REQUEST, 'Invalid Request: Method is missing or not a string.', null, $id),
+                400
+            );
+        }
+        
+        Logger::info('JSON-RPC request processing', [
+            'jsonrpc_version' => $jsonrpc,
+            'id' => $id,
+            'method' => $method,
+            'params_type' => gettype($params)
+            // 'params_preview' => is_array($params) ? array_slice($params, 0, 5) : $params // Avoid logging too much
         ]);
+        
+        switch ($method) {
+            case 'mcp.manifest':
+            case 'mcp.getManifest':
+            case 'initialize':
+                $manifest = $this->server->getManifest();
+                return response()->json(JsonRpcResponse::success([
+                    'protocolVersion' => '2024-11-05',
+                    'serverInfo' => [
+                        'name' => $manifest['name'],
+                        'version' => $manifest['version'],
+                        'description' => $manifest['description']
+                    ],
+                    'capabilities' => [
+                        'tools' => $manifest['tools']
+                    ]
+                ], $id));
+            
+            case 'tools/list':
+                $manifest = $this->server->getManifest();
+                return response()->json(JsonRpcResponse::success([
+                    'tools' => array_values((array) $manifest['tools'])
+                ], $id));
+            
+            case 'tools/call':
+                $shortToolName = $params['name'] ?? null;
+                $arguments = $params['arguments'] ?? [];
+
+                if (!is_array($params)) {
+                     Logger::warning('MCP tools/call: params is not an object/array.', ['params_received' => $params]);
+                     return response()->json(
+                        JsonRpcResponse::error(JsonRpcResponse::INVALID_PARAMS, 'Invalid params: Must be an object.', null, $id),
+                        400
+                    );
+                }
+                
+                if (!$shortToolName || !is_string($shortToolName)) {
+                    Logger::warning('MCP tools/call: Missing or invalid tool name.', ['tool_name_received' => $shortToolName]);
+                    return response()->json(
+                        JsonRpcResponse::error(JsonRpcResponse::INVALID_PARAMS, 'Invalid params: tool name is required and must be a string.', null, $id),
+                        400
+                    );
+                }
+
+                if (!is_array($arguments) && !is_object($arguments)) {
+                     Logger::warning('MCP tools/call: Invalid arguments type.', ['arguments_type' => gettype($arguments)]);
+                     return response()->json(
+                        JsonRpcResponse::error(JsonRpcResponse::INVALID_PARAMS, 'Invalid params: arguments must be an array or object.', null, $id),
+                        400
+                    );
+                }
+
+                $fullToolName = $this->getFullToolName($shortToolName);
+                Logger::info('Executing tool via JSON-RPC', [
+                    'tool_short_name' => $shortToolName,
+                    'tool_full_name' => $fullToolName,
+                ]);
+                
+                try {
+                    $result = $this->server->executeTool($fullToolName, (array) $arguments);
+                    return response()->json(JsonRpcResponse::mcpToolResponse($result, $id));
+                } catch (\Exception $e) {
+                    Logger::error('MCP tools/call: Tool execution error.', ['tool_full_name' => $fullToolName, 'tool_short_name' => $shortToolName, 'error' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+                    
+                    $errorMessage = $e->getMessage();
+                    if (strpos($errorMessage, 'Tool not found:') === 0) {
+                        // Use the short tool name as requested by the client for the error message
+                        $errorMessage = "Tool not found: {$shortToolName}";
+                    }
+
+                    return response()->json(
+                        JsonRpcResponse::error(JsonRpcResponse::INTERNAL_ERROR, $errorMessage, null, $id),
+                        500
+                    );
+                }
+            
+            default:
+                Logger::warning('MCP request: Method not found.', ['method_received' => $method]);
+                return response()->json(
+                    JsonRpcResponse::error(JsonRpcResponse::METHOD_NOT_FOUND, "Method not found: {$method}", null, $id),
+                    400
+                );
+        }
     }
     
     public function executeTool(Request $request, $tool)
@@ -187,7 +239,16 @@ class McpController extends Controller
                 'params' => $params
             ]);
             
-            $result = $this->server->executeTool($tool, $params);
+            // No método executeTool, o $tool já é o nome curto da URL.
+            // Precisamos convertê-lo para o nome completo.
+            $fullToolName = $this->getFullToolName($tool);
+            Logger::info('Direct tool execution via /tools/{tool} route', [
+                'tool_short_name' => $tool,
+                'tool_full_name' => $fullToolName,
+                'params' => $params
+            ]);
+
+            $result = $this->server->executeTool($fullToolName, $params);
             
             // Formatar resposta no padrão esperado pelo MCP
             $response = [
@@ -199,8 +260,8 @@ class McpController extends Controller
                 ]
             ];
             
-            Logger::info('Tool execution successful', [
-                'tool' => $tool,
+            Logger::info('Tool execution successful (direct route)', [
+                'tool' => $fullToolName,
                 'response' => $response
             ]);
             
@@ -208,8 +269,9 @@ class McpController extends Controller
             return response()->json($response);
             
         } catch (\Exception $e) {
-            Logger::error('Tool execution failed', [
-                'tool' => $tool,
+            Logger::error('Tool execution failed (direct route)', [
+                'tool' => $tool, // Log o nome curto aqui, pois é o da URL
+                'full_tool_name_attempted' => $this->getFullToolName($tool),
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
                 'request' => [
@@ -252,161 +314,122 @@ class McpController extends Controller
      */
     protected function jsonRpcError($id, $code, $message, $data = null)
     {
-        $response = [
-            'jsonrpc' => '2.0',
-            'id' => $id,
-            'method' => 'tools/call', // Required by MCP client
-            'error' => [
-                'code' => $code,
-                'message' => $message
-            ]
+        $error = [
+            'code' => $code,
+            'message' => $message
         ];
         
         if ($data !== null) {
-            $response['error']['data'] = $data;
+            $error['data'] = $data;
         }
         
-        return response()->json($response);
+        return response()->json([
+            'jsonrpc' => '2.0',
+            'id' => $id,
+            'error' => $error
+        ], JsonRpcResponse::httpStatusCode($code)); // Usar helper para status code HTTP
     }
     
-    /**
-     * Executa uma ferramenta via chamada tools/call do MCP
-     */
     public function executeToolCall(Request $request)
     {
-        Logger::info('MCP tools/call request received', [
+        Logger::info('MCP executeToolCall received', [
             'method' => $request->method(),
-            'input' => $request->all()
+            'uri' => $request->fullUrl(),
+            'input_all' => $request->all(),
+            'content_type' => $request->header('Content-Type'),
+            'raw_content_preview' => substr($request->getContent(), 0, 200)
         ]);
+
+        if (!$request->isJson()) {
+            Logger::warning('executeToolCall: Content-Type is not JSON.', ['content_type' => $request->header('Content-Type')]);
+            return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::PARSE_ERROR, 'Parse error: Content-Type must be application/json.', null, null),
+                400
+            );
+        }
+
+        $rawContent = $request->getContent();
+        if (empty($rawContent)) {
+            Logger::warning('executeToolCall: Empty JSON body.');
+             return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::INVALID_REQUEST, 'Invalid Request: Empty JSON body.', null, null),
+                400
+            );
+        }
+
+        $decoded = json_decode($rawContent, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            Logger::warning('executeToolCall: JSON parse error.', ['json_error' => json_last_error_msg(), 'raw_content' => $rawContent]);
+            return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::PARSE_ERROR, 'Parse error: Invalid JSON in request body. Error: ' . json_last_error_msg(), null, null),
+                400
+            );
+        }
         
+        if (!is_array($decoded)) {
+            Logger::warning('executeToolCall: Decoded JSON is not an array/object.', ['decoded_type' => gettype($decoded)]);
+             return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::INVALID_REQUEST, 'Invalid Request: JSON body must be an object.', null, null),
+                400
+            );
+        }
+
+        $jsonrpc = $decoded['jsonrpc'] ?? null;
+        $id = $decoded['id'] ?? null;
+        // $method = $decoded['method'] ?? null; // Em executeToolCall, o método da rota é o que importa.
+        $params = $decoded['params'] ?? [];
+
+        if ($jsonrpc !== '2.0') {
+            Logger::warning('executeToolCall: Invalid JSON-RPC version.', ['version_received' => $jsonrpc]);
+            return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::INVALID_REQUEST, 'Invalid JSON-RPC version. Must be \'2.0\'.', null, $id),
+                400
+            );
+        }
+
+        $shortToolName = $params['name'] ?? null;
+        $arguments = $params['arguments'] ?? [];
+
+        if (!is_array($params)) {
+             Logger::warning('MCP executeToolCall: params is not an object/array.', ['params_received' => $params]);
+             return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::INVALID_PARAMS, 'Invalid params: Must be an object.', null, $id),
+                400
+            );
+        }
+
+        if (!$shortToolName || !is_string($shortToolName)) {
+            Logger::warning('executeToolCall: Missing or invalid tool name.', ['tool_name_received' => $shortToolName]);
+            return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::INVALID_PARAMS, 'Invalid params: tool name is required and must be a string.', null, $id),
+                400
+            );
+        }
+
+        if (!is_array($arguments) && !is_object($arguments)) {
+             Logger::warning('MCP executeToolCall: Invalid arguments type.', ['arguments_type' => gettype($arguments)]);
+             return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::INVALID_PARAMS, 'Invalid params: arguments must be an array or object.', null, $id),
+                400
+            );
+        }
+
+        $fullToolName = $this->getFullToolName($shortToolName);
+        Logger::info('Executing tool via executeToolCall', [
+            'tool_short_name' => $shortToolName,
+            'tool_full_name' => $fullToolName,
+        ]);
+
         try {
-            // Validar requisição
-            if (!$request->isJson()) {
-                Logger::warning('Invalid request format - not JSON');
-                return response()->json([
-                    'jsonrpc' => '2.0',
-                    'id' => $request->input('id', null),
-                    'error' => [
-                        'code' => -32700,
-                        'message' => 'Parse error: Invalid JSON'
-                    ]
-                ], 400);
-            }
-            
-            // Extrair parâmetros da requisição
-            $jsonRpc = $request->input('jsonrpc');
-            $id = $request->input('id');
-            $method = $request->input('method');
-            $params = $request->input('params', []);
-            
-            Logger::debug('JSON-RPC request', [
-                'jsonrpc' => $jsonRpc,
-                'id' => $id,
-                'method' => $method,
-                'params' => $params
-            ]);
-            
-            // Validar versão JSON-RPC
-            if ($jsonRpc !== '2.0') {
-                return response()->json([
-                    'jsonrpc' => '2.0',
-                    'id' => $id,
-                    'error' => [
-                        'code' => -32600,
-                        'message' => 'Invalid JSON-RPC version'
-                    ]
-                ], 400);
-            }
-            
-            // Validar método
-            if ($method !== 'tools/call') {
-                return response()->json([
-                    'jsonrpc' => '2.0',
-                    'id' => $id,
-                    'error' => [
-                        'code' => -32601,
-                        'message' => "Method not found: {$method}"
-                    ]
-                ], 400);
-            }
-            
-            // Extrair nome da ferramenta e argumentos
-            $toolName = $params['name'] ?? null;
-            $arguments = $params['arguments'] ?? [];
-            
-            if (!$toolName) {
-                Logger::warning('Tool name not provided');
-                return response()->json([
-                    'jsonrpc' => '2.0',
-                    'id' => $id,
-                    'error' => [
-                        'code' => -32602,
-                        'message' => 'Tool name not provided'
-                    ]
-                ], 400);
-            }
-            
-            Logger::debug('Executing tool', [
-                'tool' => $toolName,
-                'arguments' => $arguments
-            ]);
-            
-            // Executar a ferramenta
-            $result = $this->server->executeTool($toolName, $arguments);
-            
-            Logger::info('Tool execution successful', [
-                'tool' => $toolName,
-                'result_type' => gettype($result)
-            ]);
-            
-            // NOVA ABORDAGEM: Formato específico para tools/call
-            // Para chamadas tools/call, o cliente espera a resposta no formato:
-            // { jsonrpc: "2.0", id: <id>, method: "tools/call", content: [...] }
-            
-            // Primeiro, vamos verificar se o resultado já tem um formato adequado
-            if (is_array($result) && isset($result['content'])) {
-                $content = $result['content'];
-            } else {
-                // Caso contrário, converter para o formato content esperado
-                $content = [
-                    [
-                        'type' => 'text',
-                        'text' => is_string($result) ? $result : json_encode($result, JSON_PRETTY_PRINT)
-                    ]
-                ];
-            }
-            
-            // Formatar a resposta no formato que o cliente espera
-            $formattedResponse = [
-                'jsonrpc' => '2.0',
-                'id' => $id,
-                'method' => 'tools/call',
-                'content' => $content
-            ];
-            
-            // Log da resposta formatada
-            Logger::debug('Formatted response for tools/call', [
-                'response' => $formattedResponse
-            ]);
-            
-            return response()->json($formattedResponse);
-            
+            $result = $this->server->executeTool($fullToolName, (array) $arguments);
+            return response()->json(JsonRpcResponse::mcpToolResponse($result, $id));
         } catch (\Exception $e) {
-            Logger::error('Tool execution failed', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            return response()->json([
-                'jsonrpc' => '2.0',
-                'id' => $request->input('id'),
-                'method' => 'tools/call',
-                'error' => [
-                    'code' => -32603,
-                    'message' => 'Internal error',
-                    'data' => $e->getMessage()
-                ]
-            ], 500);
+            Logger::error('executeToolCall: Tool execution error.', ['tool' => $fullToolName, 'error' => $e->getMessage()]);
+            return response()->json(
+                JsonRpcResponse::error(JsonRpcResponse::INTERNAL_ERROR, $e->getMessage(), null, $id),
+                500
+            );
         }
     }
 } 

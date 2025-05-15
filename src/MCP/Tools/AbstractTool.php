@@ -3,6 +3,7 @@
 namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
+use LucianoTonet\TelescopeMcp\Support\JsonRpcResponse;
 use LucianoTonet\TelescopeMcp\Support\Logger;
 
 /**
@@ -37,7 +38,7 @@ abstract class AbstractTool
      */
     public function getName(): string
     {
-        return $this->getShortName();
+        return 'mcp_Laravel_Telescope_MCP_' . $this->getShortName();
     }
     
     /**

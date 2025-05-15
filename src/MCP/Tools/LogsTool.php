@@ -165,7 +165,7 @@ class LogsTool extends AbstractTool
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->created_at);
+            $createdAt = DateFormatter::format($entry->createdAt);
 
             // Extract relevant information from the log entry
             $level = $content['level'] ?? 'Unknown';
@@ -228,7 +228,7 @@ class LogsTool extends AbstractTool
         $output .= "Level: " . strtoupper($content['level'] ?? 'Unknown') . "\n";
         $output .= "Message: " . ($content['message'] ?? 'No message') . "\n";
         
-        $createdAt = DateFormatter::format($entry->created_at);
+        $createdAt = DateFormatter::format($entry->createdAt);
         $output .= "Created At: {$createdAt}\n\n";
 
         // Context information

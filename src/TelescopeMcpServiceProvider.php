@@ -40,8 +40,7 @@ class TelescopeMcpServiceProvider extends ServiceProvider
     protected function registerRoutes()
     {
         Route::group([
-            'prefix' => config('telescope-mcp.path', 'mcp'),
-            'namespace' => 'LucianoTonet\TelescopeMcp\Http\Controllers',
+            'prefix' => config('telescope-mcp.path', 'telescope-mcp'),
             'middleware' => config('telescope-mcp.middleware', ['web'])
         ], function () {
             $this->loadRoutesFrom(__DIR__.'/../routes/api.php');

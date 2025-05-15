@@ -23,11 +23,15 @@ use LucianoTonet\TelescopeMcp\MCP\Tools\QueriesTool;
 use LucianoTonet\TelescopeMcp\MCP\Tools\RedisTool;
 use LucianoTonet\TelescopeMcp\MCP\Tools\ScheduleTool;
 use LucianoTonet\TelescopeMcp\MCP\Tools\ViewsTool;
+use Illuminate\Support\Facades\Log;
+use LucianoTonet\TelescopeMcp\Support\JsonRpcResponse;
+use LucianoTonet\TelescopeMcp\Support\Logger;
 
 class TelescopeMcpServer
 {
     protected $entriesRepository;
     protected $tools;
+    protected $manifest;
     
     /**
      * Prefixo para nomes de ferramenta
@@ -65,6 +69,8 @@ class TelescopeMcpServer
 
         // Registrar PruneTool (não precisa de $entriesRepository no construtor)
         $this->registerTool(new PruneTool());
+
+        $this->buildManifest();
     }
     
     /**
@@ -75,7 +81,7 @@ class TelescopeMcpServer
      */
     public function registerTool($tool)
     {
-        // Usar o nome fornecido pela ferramenta
+        // Usar o nome completo fornecido pela ferramenta
         $toolName = $tool->getName();
         
         // Adicionar à coleção
@@ -95,15 +101,9 @@ class TelescopeMcpServer
             return true;
         }
         
-        // Se for um nome antigo, verificar com o prefixo
-        $legacyName = 'mcp_telescope_' . $toolName;
-        if ($this->tools->has($legacyName)) {
-            return true;
-        }
-        
-        // Verificar sem o prefixo para compatibilidade
-        foreach ($this->tools as $name => $tool) {
-            if ($this->getShortToolName($name) === $toolName) {
+        // Se não encontrou pelo nome exato, tentar buscar pela ferramenta
+        foreach ($this->tools as $tool) {
+            if ($tool->getName() === $toolName) {
                 return true;
             }
         }
@@ -140,15 +140,9 @@ class TelescopeMcpServer
             return $this->tools->get($toolName);
         }
         
-        // Se for um nome antigo, verificar com o prefixo
-        $legacyName = 'mcp_telescope_' . $toolName;
-        if ($this->tools->has($legacyName)) {
-            return $this->tools->get($legacyName);
-        }
-        
-        // Verificar sem o prefixo para compatibilidade
-        foreach ($this->tools as $name => $tool) {
-            if ($this->getShortToolName($name) === $toolName) {
+        // Se não encontrou pelo nome exato, tentar buscar pela ferramenta
+        foreach ($this->tools as $tool) {
+            if ($tool->getName() === $toolName) {
                 return $tool;
             }
         }
@@ -157,11 +151,9 @@ class TelescopeMcpServer
     }
     
     /**
-     * Obtém o manifesto do servidor MCP
-     * 
-     * @return array
+     * Constrói o manifesto do servidor MCP
      */
-    public function getManifest()
+    protected function buildManifest()
     {
         // Format tools to match MCP client expectations
         $toolsFormatted = (object)[];
@@ -195,7 +187,7 @@ class TelescopeMcpServer
             ];
         }
         
-        return [
+        $this->manifest = [
             'name' => 'Laravel Telescope MCP',
             'version' => '1.0.0',
             'description' => 'Laravel Telescope Model Context Provider',
@@ -204,25 +196,39 @@ class TelescopeMcpServer
     }
     
     /**
-     * Executa uma ferramenta com os parâmetros fornecidos
-     * 
-     * @param string $toolName
-     * @param array $params
-     * @return array
+     * Retorna o manifesto do servidor MCP
      */
-    public function executeTool($toolName, $params)
+    public function getManifest(): array
     {
-        $tool = $this->getTool($toolName);
-        
-        if (!$tool) {
-            throw new \Exception("Tool not found: {$toolName}");
-        }
+        return $this->manifest;
+    }
+    
+    /**
+     * Executa uma ferramenta com os argumentos fornecidos
+     *
+     * @param string $toolName Nome da ferramenta
+     * @param array $arguments Argumentos para a ferramenta
+     * @return array Resultado da execução
+     * @throws \Exception Se a ferramenta não for encontrada
+     */
+    public function executeTool(string $toolName, array $arguments = []): array
+    {
+        Logger::info('Executing tool', [
+            'tool' => $toolName,
+            'arguments' => $arguments
+        ]);
         
         try {
-            $result = $tool->execute($params);
+            // Verificar se a ferramenta existe
+            if (!isset($this->tools[$toolName])) {
+                throw new \Exception("Tool not found: {$toolName}");
+            }
             
-            // Log the execution result
-            \Illuminate\Support\Facades\Log::info('Tool execution result', [
+            // Executar a ferramenta
+            $tool = $this->tools[$toolName];
+            $result = $tool->execute($arguments);
+            
+            Logger::info('Tool execution successful', [
                 'tool' => $toolName,
                 'result' => $result
             ]);
@@ -242,7 +248,7 @@ class TelescopeMcpServer
             return $result;
             
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Tool execution error', [
+            Log::error('Tool execution error', [
                 'tool' => $toolName,
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
