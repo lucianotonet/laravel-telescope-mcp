@@ -60,7 +60,7 @@ class TelescopeMcpTest extends TestCase
             'jsonrpc' => '2.0',
             'method' => 'tools/call',
             'params' => [
-                'name' => 'telescope_mcp.logs',
+                'name' => 'logs',
                 'arguments' => [
                     'limit' => 10
                 ]
@@ -73,9 +73,9 @@ class TelescopeMcpTest extends TestCase
         $this->assertJson($response->content());
 
         // Debug response content
-        dump('Response Content:', $response->content());
-        dump('Response Status:', $response->status());
-        dump('Response Headers:', $response->headers->all());
+        // dump('Response Content:', $response->content());
+        // dump('Response Status:', $response->status());
+        // dump('Response Headers:', $response->headers->all());
 
         $response->assertStatus(200)
                 ->assertJsonStructure([
@@ -101,7 +101,7 @@ class TelescopeMcpTest extends TestCase
             'jsonrpc' => '2.0',
             'method' => 'tools/call',
             'params' => [
-                'name' => 'telescope_mcp.requests',
+                'name' => 'requests',
                 'arguments' => [
                     'limit' => 10
                 ]
@@ -114,9 +114,9 @@ class TelescopeMcpTest extends TestCase
         $this->assertJson($response->content());
 
         // Debug response content
-        dump('Response Content:', $response->content());
-        dump('Response Status:', $response->status());
-        dump('Response Headers:', $response->headers->all());
+        // dump('Response Content:', $response->content());
+        // dump('Response Status:', $response->status());
+        // dump('Response Headers:', $response->headers->all());
 
         $response->assertStatus(200)
                 ->assertJsonStructure([
