@@ -36,7 +36,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-composer-${{ hashFiles(\'**/composer.lock\') }}
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-composer-
 
@@ -50,7 +50,7 @@ jobs:
     name: Publish to Packagist
     needs: test # Ensure tests pass before publishing
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, \'refs/tags/v\') # Only run on tag pushes starting with \'v\'
+    if: startsWith(github.ref, 'refs/tags/v') # Only run on tag pushes starting with 'v'
 
     steps:
       - name: Checkout code
@@ -71,7 +71,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache-publish.outputs.dir }}
-          key: ${{ runner.os }}-composer-publish-${{ hashFiles(\'**/composer.lock\') }}
+          key: ${{ runner.os }}-composer-publish-${{ hashFiles('**/composer.lock') }}
           restore-keys: |
             ${{ runner.os }}-composer-publish-
 
@@ -103,7 +103,7 @@ jobs:
 #          curl -X POST \
 #               -H "Content-type:application/json" \
 #               "https://packagist.org/api/update-package?username=<YOUR_PACKAGIST_USERNAME>&apiToken=${{ secrets.PACKAGIST_API_TOKEN }}" \
-#               -d "{\"repository\":{\"url\":\"https://github.com/${{ github.repository }}\"}}"
+#               -d "\{\"repository\":{\"url\":\"https://github.com/${{ github.repository }}\"\}}"
 #        env:
 #          PACKAGIST_USERNAME: "your-packagist-username" # Store this as a secret or variable if preferred
 
