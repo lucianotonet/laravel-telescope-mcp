@@ -122,7 +122,7 @@ class CacheTool extends AbstractTool
                 return $this->getCacheDetails($params['id']);
             }
 
-            return $this->listCacheOperations($params);
+            return $this->listCache($params);
         } catch (\Exception $e) {
             Logger::error($this->getName() . ' execution error', [
                 'error' => $e->getMessage(),
@@ -134,23 +134,21 @@ class CacheTool extends AbstractTool
     }
 
     /**
-     * Lists cache operations recorded by Telescope
+     * Lists cache operations
      * 
-     * @param array $params Query parameters
+     * @param array $params Tool parameters
      * @return array Response in MCP format
      */
-    protected function listCacheOperations(array $params): array
+    protected function listCache(array $params): array
     {
-        // Set query limit
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
+        Logger::info($this->getName() . ' listing entries', $params);
 
-        // Configure options
-        $options = new EntryQueryOptions();
-        $options->limit($limit);
+        // Create query options
+        $options = new EntryQueryOptions($params['limit'] ?? 50);
 
         // Add filters if specified
         if (!empty($params['operation'])) {
-            $options->tag('type:' . $params['operation']);
+            $options->tag('operation:' . strtolower($params['operation']));
         }
         if (!empty($params['key'])) {
             $options->tag('key:' . $params['key']);
@@ -170,13 +168,13 @@ class CacheTool extends AbstractTool
             $createdAt = DateFormatter::format($entry->created_at);
 
             // Extract relevant information from the cache operation
-            $type = $content['type'] ?? 'Unknown';
+            $operation = $content['type'] ?? 'Unknown';
             $key = $content['key'] ?? 'Unknown';
             $duration = $content['duration'] ?? 0;
 
             $operations[] = [
                 'id' => $entry->id,
-                'type' => $type,
+                'operation' => $operation,
                 'key' => $key,
                 'duration' => $duration,
                 'created_at' => $createdAt
@@ -190,29 +188,17 @@ class CacheTool extends AbstractTool
         $table .= str_repeat("-", 100) . "\n";
 
         foreach ($operations as $op) {
-            // Format type with indicator
-            $typeStr = strtoupper($op['type']);
-            switch (strtolower($op['type'])) {
-                case 'miss':
-                    $typeStr .= ' [!]';
-                    break;
-                case 'hit':
-                    $typeStr .= ' [✓]';
-                    break;
-            }
-
             // Truncate key if too long
             $key = $op['key'];
             if (strlen($key) > 50) {
                 $key = substr($key, 0, 47) . "...";
             }
 
-            $table .= sprintf(
-                "%-5s %-8s %-50s %-10s %-20s\n",
+            $table .= sprintf("%-5s %-8s %-50s %-10.2f %-20s\n",
                 $op['id'],
-                $typeStr,
+                $op['operation'],
                 $key,
-                number_format($op['duration'], 2),
+                $op['duration'],
                 $op['created_at']
             );
         }
@@ -242,10 +228,10 @@ class CacheTool extends AbstractTool
         // Detailed formatting of the cache operation
         $output = "Cache Operation Details:\n\n";
         $output .= "ID: {$entry->id}\n";
-        $output .= "Type: " . strtoupper($content['type'] ?? 'Unknown') . "\n";
+        $output .= "Operation: " . ($content['type'] ?? 'Unknown') . "\n";
         $output .= "Key: " . ($content['key'] ?? 'Unknown') . "\n";
         $output .= "Duration: " . number_format(($content['duration'] ?? 0), 2) . " ms\n";
-
+        
         $createdAt = DateFormatter::format($entry->created_at);
         $output .= "Created At: {$createdAt}\n\n";
 
@@ -257,11 +243,6 @@ class CacheTool extends AbstractTool
             } else {
                 $output .= $content['value'] . "\n";
             }
-        }
-
-        // Additional metadata
-        if (!empty($content['metadata'])) {
-            $output .= "\nMetadata:\n" . json_encode($content['metadata'], JSON_PRETTY_PRINT) . "\n";
         }
 
         return $this->formatResponse($output);

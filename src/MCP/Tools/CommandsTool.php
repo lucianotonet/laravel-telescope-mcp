@@ -167,33 +167,15 @@ class CommandsTool extends AbstractTool
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->created_at);
-
-            // Extract relevant information from the command execution
-            $command = $content['command'] ?? 'Unknown';
-            $exitCode = $content['exit_code'] ?? null;
-            $status = $exitCode === 0 ? 'Success' : ($exitCode === null ? 'Unknown' : 'Error');
-            $arguments = $content['arguments'] ?? [];
-            $options = $content['options'] ?? [];
-
-            // Format arguments and options for display
-            $argsStr = empty($arguments) ? '' : implode(' ', $arguments);
-            $optsStr = '';
-            foreach ($options as $key => $value) {
-                if (is_bool($value)) {
-                    $optsStr .= $value ? " --{$key}" : '';
-                } else {
-                    $optsStr .= " --{$key}=" . (is_array($value) ? implode(',', $value) : $value);
-                }
-            }
-
+            
+            // Get timestamp from content
+            $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
+            
             $commands[] = [
                 'id' => $entry->id,
-                'command' => $command,
-                'args' => $argsStr,
-                'opts' => $optsStr,
-                'status' => $status,
-                'exit_code' => $exitCode,
+                'command' => $content['command'] ?? 'Unknown',
+                'exit_code' => $content['exit_code'] ?? 0,
+                'arguments' => isset($content['arguments']) ? implode(' ', $content['arguments']) : '',
                 'created_at' => $createdAt
             ];
         }
@@ -206,13 +188,13 @@ class CommandsTool extends AbstractTool
 
         foreach ($commands as $cmd) {
             // Combine args and opts, truncate if too long
-            $params = trim($cmd['args'] . ' ' . $cmd['opts']);
+            $params = trim($cmd['arguments']);
             if (strlen($params) > 40) {
                 $params = substr($params, 0, 37) . "...";
             }
 
             // Format status with indicator
-            $statusStr = $cmd['status'];
+            $statusStr = $cmd['exit_code'] === 0 ? 'Success' : ($cmd['exit_code'] === null ? 'Unknown' : 'Error');
             if ($statusStr === 'Error') {
                 $statusStr .= " [{$cmd['exit_code']}]";
             }
@@ -248,11 +230,16 @@ class CommandsTool extends AbstractTool
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
-
-        // Detailed formatting of the command execution
-        $output = "Command Execution Details:\n\n";
+        
+        // Get timestamp from content
+        $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
+        
+        // Detailed formatting of the command
+        $output = "Command Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Command: " . ($content['command'] ?? 'Unknown') . "\n";
+        $output .= "Exit Code: " . ($content['exit_code'] ?? 0) . "\n";
+        $output .= "Created At: {$createdAt}\n\n";
 
         // Arguments
         if (!empty($content['arguments'])) {
@@ -275,14 +262,6 @@ class CommandsTool extends AbstractTool
             }
             $output .= "\n";
         }
-
-        // Status and exit code
-        $exitCode = $content['exit_code'] ?? null;
-        $output .= "Exit Code: " . ($exitCode === null ? 'Unknown' : $exitCode) . "\n";
-        $output .= "Status: " . ($exitCode === 0 ? 'Success' : ($exitCode === null ? 'Unknown' : 'Error')) . "\n";
-
-        $createdAt = DateFormatter::format($entry->created_at);
-        $output .= "Created At: {$createdAt}\n\n";
 
         // Output
         if (!empty($content['output'])) {

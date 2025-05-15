@@ -6,6 +6,7 @@ use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
 class JobsTool extends AbstractTool
 {
@@ -125,25 +126,8 @@ class JobsTool extends AbstractTool
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
             
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in JobsTool::listJobs', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            }
+            // Format the date using DateFormatter
+            $createdAt = DateFormatter::format($entry->created_at);
             
             $jobs[] = [
                 'id' => $entry->id,
@@ -197,33 +181,16 @@ class JobsTool extends AbstractTool
         
         $content = is_array($entry->content) ? $entry->content : [];
         
-        // Formatação detalhada do job
+        // Format the date using DateFormatter
+        $createdAt = DateFormatter::format($entry->created_at);
+        
+        // Detailed formatting of the job
         $output = "Job Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Name: " . ($content['name'] ?? 'Unknown') . "\n";
         $output .= "Status: " . ($content['status'] ?? 'Unknown') . "\n";
         $output .= "Queue: " . ($content['queue'] ?? 'default') . "\n";
         $output .= "Attempts: " . ($content['attempts'] ?? 0) . "\n";
-        
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
-                    }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in JobsTool::getJobDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-        }
         $output .= "Created At: {$createdAt}\n\n";
         
         // Dados do job

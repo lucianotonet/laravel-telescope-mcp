@@ -134,19 +134,17 @@ class LogsTool extends AbstractTool
     }
 
     /**
-     * Lists log entries recorded by Telescope
+     * Lists log entries
      * 
-     * @param array $params Query parameters
+     * @param array $params Tool parameters
      * @return array Response in MCP format
      */
     protected function listLogs(array $params): array
     {
-        // Set query limit
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
+        Logger::info($this->getName() . ' listing entries', $params);
 
-        // Configure options
-        $options = new EntryQueryOptions();
-        $options->limit($limit);
+        // Create query options
+        $options = new EntryQueryOptions($params['limit'] ?? 50);
 
         // Add filters if specified
         if (!empty($params['level'])) {
@@ -171,14 +169,12 @@ class LogsTool extends AbstractTool
 
             // Extract relevant information from the log entry
             $level = $content['level'] ?? 'Unknown';
-            $message = $content['message'] ?? 'Unknown';
-            $context = $content['context'] ?? [];
+            $message = $content['message'] ?? 'No message';
 
             $logs[] = [
                 'id' => $entry->id,
                 'level' => $level,
                 'message' => $message,
-                'context' => $context,
                 'created_at' => $createdAt
             ];
         }
@@ -190,34 +186,15 @@ class LogsTool extends AbstractTool
         $table .= str_repeat("-", 100) . "\n";
 
         foreach ($logs as $log) {
-            // Format level with appropriate indicator
-            $levelStr = strtoupper($log['level']);
-            switch (strtolower($log['level'])) {
-                case 'emergency':
-                case 'alert':
-                case 'critical':
-                case 'error':
-                    $levelStr .= ' [!]';
-                    break;
-                case 'warning':
-                    $levelStr .= ' [W]';
-                    break;
-                case 'notice':
-                case 'info':
-                    $levelStr .= ' [i]';
-                    break;
-            }
-
             // Truncate message if too long
             $message = $log['message'];
             if (strlen($message) > 60) {
                 $message = substr($message, 0, 57) . "...";
             }
 
-            $table .= sprintf(
-                "%-5s %-10s %-60s %-20s\n",
+            $table .= sprintf("%-5s %-10s %-60s %-20s\n",
                 $log['id'],
-                $levelStr,
+                strtoupper($log['level']),
                 $message,
                 $log['created_at']
             );
@@ -249,28 +226,14 @@ class LogsTool extends AbstractTool
         $output = "Log Entry Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Level: " . strtoupper($content['level'] ?? 'Unknown') . "\n";
-        $output .= "Message: " . ($content['message'] ?? 'Unknown') . "\n";
-
+        $output .= "Message: " . ($content['message'] ?? 'No message') . "\n";
+        
         $createdAt = DateFormatter::format($entry->created_at);
         $output .= "Created At: {$createdAt}\n\n";
 
-        // Context
+        // Context information
         if (!empty($content['context'])) {
-            $output .= "Context:\n" . json_encode($content['context'], JSON_PRETTY_PRINT) . "\n\n";
-        }
-
-        // Stack trace (if available)
-        if (!empty($content['context']['exception'])) {
-            $exception = $content['context']['exception'];
-            $output .= "Exception:\n";
-            $output .= "Class: " . ($exception['class'] ?? 'Unknown') . "\n";
-            $output .= "Message: " . ($exception['message'] ?? 'Unknown') . "\n";
-            if (!empty($exception['trace'])) {
-                $output .= "Stack Trace:\n" . implode("\n", array_slice($exception['trace'], 0, 10)) . "\n";
-                if (count($exception['trace']) > 10) {
-                    $output .= "... (truncated)\n";
-                }
-            }
+            $output .= "Context:\n" . json_encode($content['context'], JSON_PRETTY_PRINT) . "\n";
         }
 
         return $this->formatResponse($output);

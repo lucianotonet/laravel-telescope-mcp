@@ -6,6 +6,7 @@ use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
 class ModelsTool extends AbstractTool
 {
@@ -125,25 +126,8 @@ class ModelsTool extends AbstractTool
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
             
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in ModelsTool::listModelOperations', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            }
+            // Get timestamp from content
+            $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
             
             $operations[] = [
                 'id' => $entry->id,
@@ -195,32 +179,15 @@ class ModelsTool extends AbstractTool
         
         $content = is_array($entry->content) ? $entry->content : [];
         
-        // Formatação detalhada da operação
+        // Get timestamp from content
+        $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
+        
+        // Detailed formatting of the model operation
         $output = "Model Operation Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Action: " . ($content['action'] ?? 'Unknown') . "\n";
         $output .= "Model: " . ($content['model'] ?? 'Unknown') . "\n";
         $output .= "Model ID: " . ($content['model_id'] ?? 'N/A') . "\n";
-        
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
-                    }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in ModelsTool::getModelDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-        }
         $output .= "Created At: {$createdAt}\n\n";
         
         // Atributos antigos (para update/delete)

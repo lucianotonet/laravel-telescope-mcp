@@ -158,7 +158,9 @@ class RequestsTool extends AbstractTool
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->created_at);
+            
+            // Get timestamp from content
+            $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
 
             // Extract relevant information from the request
             $method = $content['method'] ?? 'Unknown';
@@ -231,6 +233,9 @@ class RequestsTool extends AbstractTool
 
         $content = is_array($entry->content) ? $entry->content : [];
 
+        // Get timestamp from content
+        $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
+
         // Detailed formatting of the request
         $output = "HTTP Request Details:\n\n";
         $output .= "ID: {$entry->id}\n";
@@ -238,8 +243,6 @@ class RequestsTool extends AbstractTool
         $output .= "URI: " . ($content['uri'] ?? 'Unknown') . "\n";
         $output .= "Status: " . ($content['response_status'] ?? 'Unknown') . "\n";
         $output .= "Duration: " . number_format(($content['duration'] ?? 0), 2) . " ms\n";
-
-        $createdAt = DateFormatter::format($entry->created_at);
         $output .= "Created At: {$createdAt}\n\n";
 
         // Request headers

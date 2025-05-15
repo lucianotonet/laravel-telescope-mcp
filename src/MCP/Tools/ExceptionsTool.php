@@ -6,6 +6,7 @@ use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
 class ExceptionsTool extends AbstractTool
 {
@@ -122,30 +123,14 @@ class ExceptionsTool extends AbstractTool
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
             
-            $className = isset($content['class']) ? $content['class'] : 'Unknown';
-            $message = isset($content['message']) ? $content['message'] : 'No message';
-            $file = isset($content['file']) ? $content['file'] : 'Unknown';
-            $line = isset($content['line']) ? $content['line'] : 'Unknown';
+            // Format the date using DateFormatter
+            $createdAt = DateFormatter::format($entry->created_at);
             
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in ExceptionsTool::listExceptions', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
-            }
+            // Extract relevant information from the exception
+            $className = $content['class'] ?? 'Unknown';
+            $message = $content['message'] ?? 'No message';
+            $file = $content['file'] ?? 'Unknown';
+            $line = $content['line'] ?? 0;
             
             $exceptions[] = [
                 'id' => $entry->id,
@@ -204,7 +189,10 @@ class ExceptionsTool extends AbstractTool
         
         $content = is_array($entry->content) ? $entry->content : [];
         
-        // Formatação detalhada da exceção
+        // Format the date using DateFormatter
+        $createdAt = DateFormatter::format($entry->created_at);
+        
+        // Detailed formatting of the exception
         $output = "Exception Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Type: " . (isset($content['class']) ? $content['class'] : 'Unknown') . "\n";
@@ -212,25 +200,6 @@ class ExceptionsTool extends AbstractTool
         $output .= "File: " . (isset($content['file']) ? $content['file'] : 'Unknown') . "\n";
         $output .= "Line: " . (isset($content['line']) ? $content['line'] : 'Unknown') . "\n";
         
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
-                    }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in ExceptionsTool::getExceptionDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-        }
         $output .= "Occurred At: {$createdAt}\n\n";
         
         // Stack Trace

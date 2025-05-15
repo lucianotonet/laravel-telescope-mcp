@@ -6,6 +6,7 @@ use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
 class QueriesTool extends AbstractTool
 {
@@ -113,31 +114,15 @@ class QueriesTool extends AbstractTool
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
             
-            $duration = isset($content['time']) ? $content['time'] : 0;
+            // Get timestamp from content
+            $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
             
-            // Se o filtro de queries lentas estiver ativo, pular queries rápidas
-            if (!empty($params['slow']) && $duration < 100) {
+            $duration = $content['duration'] ?? 0;
+            $slow = $duration > 100; // Queries taking more than 100ms are considered slow
+            
+            // Skip if we're only looking for slow queries and this one isn't slow
+            if ($params['slow'] ?? false && !$slow) {
                 continue;
-            }
-            
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    try {
-                        if (trim($entry->created_at) !== '') {
-                            $dateTime = new \DateTime($entry->created_at);
-                            $createdAt = $dateTime->format('Y-m-d H:i:s');
-                        }
-                    } catch (\Exception $e) {
-                        \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in QueriesTool::listQueries', [
-                            'date_string' => $entry->created_at,
-                            'entry_id' => $entry->id ?? 'N/A',
-                            'error' => $e->getMessage()
-                        ]);
-                    }
-                }
             }
             
             $queries[] = [
@@ -190,31 +175,14 @@ class QueriesTool extends AbstractTool
         
         $content = is_array($entry->content) ? $entry->content : [];
         
-        // Formatação detalhada da query
-        $output = "Query Details:\n\n";
+        // Get timestamp from content
+        $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
+        
+        // Detailed formatting of the query
+        $output = "Database Query Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Connection: " . ($content['connection'] ?? 'default') . "\n";
         $output .= "Duration: " . number_format(($content['time'] ?? 0), 2) . "ms\n";
-        
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                try {
-                    if (trim($entry->created_at) !== '') {
-                        $dateTime = new \DateTime($entry->created_at);
-                        $createdAt = $dateTime->format('Y-m-d H:i:s');
-                    }
-                } catch (\Exception $e) {
-                    \LucianoTonet\TelescopeMcp\Support\Logger::warning('Failed to parse date in QueriesTool::getQueryDetails', [
-                        'date_string' => $entry->created_at,
-                        'entry_id' => $entry->id ?? 'N/A',
-                        'error' => $e->getMessage()
-                    ]);
-                }
-            }
-        }
         $output .= "Created At: {$createdAt}\n\n";
         
         // SQL completo

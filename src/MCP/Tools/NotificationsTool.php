@@ -167,30 +167,23 @@ class NotificationsTool extends AbstractTool
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->created_at);
-
-            // Extract relevant information from the notification
-            $channel = $content['channel'] ?? 'Unknown';
-            $notifiable = $content['notifiable'] ?? 'Unknown';
-            $notification = $content['notification'] ?? 'Unknown';
-            $queued = isset($content['queued']) && $content['queued'] ? 'Yes' : 'No';
-            $status = isset($content['response']) ? 'Sent' : (isset($content['exception']) ? 'Failed' : 'Unknown');
-
+            
+            // Get timestamp from content
+            $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
+            
             $notifications[] = [
                 'id' => $entry->id,
-                'channel' => $channel,
-                'notifiable' => $notifiable,
-                'notification' => $notification,
-                'queued' => $queued,
-                'status' => $status,
+                'channel' => $content['channel'] ?? 'Unknown',
+                'notification' => $content['notification'] ?? 'Unknown',
+                'notifiable' => $content['notifiable'] ?? 'Unknown',
                 'created_at' => $createdAt
             ];
         }
 
         // Tabular formatting for better readability
         $table = "Notifications:\n\n";
-        $table .= sprintf("%-5s %-15s %-30s %-30s %-8s %-8s %-20s\n", 
-            "ID", "Channel", "Notifiable", "Notification", "Queued", "Status", "Created At");
+        $table .= sprintf("%-5s %-15s %-30s %-30s %-20s\n", 
+            "ID", "Channel", "Notifiable", "Notification", "Created At");
         $table .= str_repeat("-", 120) . "\n";
 
         foreach ($notifications as $notif) {
@@ -206,13 +199,11 @@ class NotificationsTool extends AbstractTool
             }
 
             $table .= sprintf(
-                "%-5s %-15s %-30s %-30s %-8s %-8s %-20s\n",
+                "%-5s %-15s %-30s %-30s %-20s\n",
                 $notif['id'],
                 $notif['channel'],
                 $notifiable,
                 $notification,
-                $notif['queued'],
-                $notif['status'],
                 $notif['created_at']
             );
         }
@@ -238,17 +229,16 @@ class NotificationsTool extends AbstractTool
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
-
+        
+        // Get timestamp from content
+        $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
+        
         // Detailed formatting of the notification
         $output = "Notification Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Channel: " . ($content['channel'] ?? 'Unknown') . "\n";
-        $output .= "Notifiable: " . ($content['notifiable'] ?? 'Unknown') . "\n";
         $output .= "Notification: " . ($content['notification'] ?? 'Unknown') . "\n";
-        $output .= "Queued: " . (isset($content['queued']) && $content['queued'] ? 'Yes' : 'No') . "\n";
-        $output .= "Status: " . (isset($content['response']) ? 'Sent' : (isset($content['exception']) ? 'Failed' : 'Unknown')) . "\n";
-
-        $createdAt = DateFormatter::format($entry->created_at);
+        $output .= "Notifiable: " . ($content['notifiable'] ?? 'Unknown') . "\n";
         $output .= "Created At: {$createdAt}\n\n";
 
         // Response (if available)

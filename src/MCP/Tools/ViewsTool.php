@@ -146,26 +146,22 @@ class ViewsTool extends AbstractTool
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->created_at);
-
-            // Extract relevant information from the view rendering
-            $name = $content['name'] ?? 'Unknown';
-            $path = $content['path'] ?? 'Unknown';
-            $data = $content['data'] ?? [];
-
+            
+            // Get timestamp from content
+            $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
+            
             $views[] = [
                 'id' => $entry->id,
-                'name' => $name,
-                'path' => $path,
-                'data_count' => count($data),
+                'name' => $content['name'] ?? 'Unknown',
+                'path' => $content['path'] ?? 'Unknown',
                 'created_at' => $createdAt
             ];
         }
 
         // Tabular formatting for better readability
         $table = "View Renderings:\n\n";
-        $table .= sprintf("%-5s %-30s %-50s %-10s %-20s\n", 
-            "ID", "Name", "Path", "Data", "Created At");
+        $table .= sprintf("%-5s %-30s %-50s %-20s\n", 
+            "ID", "Name", "Path", "Created At");
         $table .= str_repeat("-", 120) . "\n";
 
         foreach ($views as $view) {
@@ -181,11 +177,10 @@ class ViewsTool extends AbstractTool
             }
 
             $table .= sprintf(
-                "%-5s %-30s %-50s %-10s %-20s\n",
+                "%-5s %-30s %-50s %-20s\n",
                 $view['id'],
                 $name,
                 $path,
-                $view['data_count'],
                 $view['created_at']
             );
         }
@@ -211,14 +206,15 @@ class ViewsTool extends AbstractTool
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
-
-        // Detailed formatting of the view rendering
-        $output = "View Rendering Details:\n\n";
+        
+        // Get timestamp from content
+        $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
+        
+        // Detailed formatting of the view
+        $output = "View Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Name: " . ($content['name'] ?? 'Unknown') . "\n";
         $output .= "Path: " . ($content['path'] ?? 'Unknown') . "\n";
-
-        $createdAt = DateFormatter::format($entry->created_at);
         $output .= "Created At: {$createdAt}\n\n";
 
         // View data

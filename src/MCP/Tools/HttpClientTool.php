@@ -6,6 +6,7 @@ use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
 class HttpClientTool extends AbstractTool
 {
@@ -132,19 +133,13 @@ class HttpClientTool extends AbstractTool
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
             
-            $createdAt = 'Unknown';
-            if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-                if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                    $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-                } elseif (is_string($entry->created_at)) {
-                    $createdAt = $entry->created_at;
-                }
-            }
+            // Format the date using DateFormatter
+            $createdAt = DateFormatter::format($entry->created_at);
             
             $requests[] = [
                 'id' => $entry->id,
                 'method' => $content['method'] ?? 'Unknown',
-                'url' => $content['url'] ?? 'Unknown',
+                'url' => $content['uri'] ?? 'Unknown',
                 'status' => $content['response_status'] ?? 0,
                 'duration' => isset($content['duration']) ? round($content['duration'] / 1000, 2) : 0,
                 'created_at' => $createdAt
@@ -193,22 +188,16 @@ class HttpClientTool extends AbstractTool
         
         $content = is_array($entry->content) ? $entry->content : [];
         
-        // Formatação detalhada da requisição
-        $output = "HTTP Request Details:\n\n";
+        // Format the date using DateFormatter
+        $createdAt = DateFormatter::format($entry->created_at);
+        
+        // Detailed formatting of the request
+        $output = "HTTP Client Request Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Method: " . ($content['method'] ?? 'Unknown') . "\n";
-        $output .= "URL: " . ($content['url'] ?? 'Unknown') . "\n";
+        $output .= "URL: " . ($content['uri'] ?? 'Unknown') . "\n";
         $output .= "Status: " . ($content['response_status'] ?? 0) . "\n";
         $output .= "Duration: " . (isset($content['duration']) ? round($content['duration'] / 1000, 2) . "s" : 'Unknown') . "\n";
-        
-        $createdAt = 'Unknown';
-        if (property_exists($entry, 'created_at') && !empty($entry->created_at)) {
-            if (is_object($entry->created_at) && method_exists($entry->created_at, 'format')) {
-                $createdAt = $entry->created_at->format('Y-m-d H:i:s');
-            } elseif (is_string($entry->created_at)) {
-                $createdAt = $entry->created_at;
-            }
-        }
         $output .= "Created At: {$createdAt}\n\n";
         
         // Headers da requisição

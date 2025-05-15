@@ -134,6 +134,6 @@ abstract class AbstractTool
      */
     protected function formatError(string $message): array
     {
-        return $this->formatResponse($message, 'error');
+        return $this->formatResponse("Error: " . $message, 'text');
     }
 } 
