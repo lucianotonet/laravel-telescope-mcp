@@ -3,20 +3,20 @@
 use Illuminate\Support\Facades\Route;
 use LucianoTonet\TelescopeMcp\Http\Controllers\McpController;
 
-// Rota específica para chamadas tools/call do MCP (deve vir antes da rota genérica)
+// Specific route for MCP tools/call (must come before generic route)
 Route::post('tools/call', [McpController::class, 'executeToolCall']);
 
-// Rota base para o protocolo MCP
+// Base route for MCP protocol
 Route::post('/', [McpController::class, 'manifest']);
 
-// Rotas alternativas para acesso direto
+// Alternative routes for direct access
 Route::get('/manifest.json', [McpController::class, 'manifest']);
 
-// Rota para execução de ferramentas específicas
+// Route for executing specific tools
 Route::post('/tools/{tool}', [McpController::class, 'executeTool'])
-    ->where('tool', '[a-zA-Z0-9_]+'); // Evita conflito com tools/call
+    ->where('tool', '[a-zA-Z0-9_]+'); // Prevents conflict with tools/call
 
-// Log todas as requisições para diagnóstico
+// Log all requests for diagnostics
 Route::any('{any}', function () {
     \LucianoTonet\TelescopeMcp\Support\Logger::info('Route not found', [
         'method' => request()->method(),
@@ -24,4 +24,4 @@ Route::any('{any}', function () {
         'input' => request()->all()
     ]);
     return response()->json(['error' => 'Route not found'], 404);
-})->where('any', '.*'); 
+})->where('any', '.*');

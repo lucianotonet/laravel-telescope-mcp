@@ -38,12 +38,12 @@ class TelescopeMcpServer
         $this->entriesRepository = $entriesRepository;
         $this->tools = new Collection();
         
-        // Registrar ferramentas existentes
+        // Register existing tools
         $this->registerTool(new RequestsTool($entriesRepository));
         $this->registerTool(new LogsTool($entriesRepository));
         $this->registerTool(new ExceptionsTool($entriesRepository));
 
-        // Registrar novas ferramentas
+        // Register new tools
         $this->registerTool(new BatchesTool($entriesRepository));
         $this->registerTool(new CacheTool($entriesRepository));
         $this->registerTool(new CommandsTool($entriesRepository));
@@ -60,53 +60,53 @@ class TelescopeMcpServer
         $this->registerTool(new ScheduleTool($entriesRepository));
         $this->registerTool(new ViewsTool($entriesRepository));
 
-        // Registrar PruneTool (não precisa de $entriesRepository no construtor)
+        // Register PruneTool (doesn't require $entriesRepository in constructor)
         $this->registerTool(new PruneTool());
 
         $this->buildManifest();
     }
     
     /**
-     * Registra uma ferramenta no servidor MCP
+     * Registers a tool in the MCP server
      * 
      * @param object $tool
      * @return void
      */
     public function registerTool($tool)
     {
-        // Usar o nome retornado por getName() (agora o nome curto)
+        // Use the name returned by getName() (now the short name)
         $toolName = $tool->getName();
         
-        // Adicionar à coleção
+        // Add to collection
         $this->tools->put($toolName, $tool);
     }
     
     /**
-     * Verifica se uma ferramenta está registrada
+     * Checks if a tool is registered
      * 
      * @param string $toolName
      * @return bool
      */
     public function hasTool($toolName)
     {
-        // Buscar pelo nome curto
+        // Search by short name
         return $this->tools->has($toolName);
     }
     
     /**
-     * Obtém uma ferramenta pelo nome
+     * Gets a tool by name
      * 
      * @param string $toolName
      * @return object|null
      */
     protected function getTool($toolName)
     {
-        // Buscar pelo nome curto
+        // Search by short name
         return $this->tools->get($toolName);
     }
     
     /**
-     * Constrói o manifesto do servidor MCP
+     * Builds the MCP server manifest
      */
     protected function buildManifest()
     {
@@ -114,7 +114,7 @@ class TelescopeMcpServer
         $toolsFormatted = (object)[];
         foreach ($this->tools as $name => $tool) {
             $schema = $tool->getSchema();
-            // O 'name' no schema já virá de $tool->getName(), que é o nome curto.
+            // The 'name' in schema will come from $tool->getName(), which is the short name
             $toolsFormatted->{$schema['name']} = [
                 'name' => $schema['name'],
                 'description' => $schema['description'],
@@ -152,7 +152,7 @@ class TelescopeMcpServer
     }
     
     /**
-     * Retorna o manifesto do servidor MCP
+     * Returns the MCP server manifest
      */
     public function getManifest(): array
     {
@@ -160,27 +160,27 @@ class TelescopeMcpServer
     }
     
     /**
-     * Executa uma ferramenta com os argumentos fornecidos
+     * Executes a tool with the provided arguments
      *
-     * @param string $toolName Nome da ferramenta
-     * @param array $arguments Argumentos para a ferramenta
-     * @return array Resultado da execução
-     * @throws \Exception Se a ferramenta não for encontrada
+     * @param string $toolName Tool name
+     * @param array $arguments Arguments for the tool
+     * @return array Execution result
+     * @throws \Exception If tool is not found
      */
     public function executeTool(string $toolName, array $arguments = []): array
     {
         Logger::info('Executing tool', [
-            'tool' => $toolName, // toolName já é o nome curto
+            'tool' => $toolName, // toolName is already the short name
             'arguments' => $arguments
         ]);
         
         try {
-            // Verificar se a ferramenta existe usando o nome curto
+            // Check if tool exists using short name
             if (!$this->hasTool($toolName)) {
                 throw new \Exception("Tool not found: {$toolName}");
             }
             
-            // Executar a ferramenta
+            // Execute the tool
             $tool = $this->getTool($toolName);
             $result = $tool->execute($arguments);
             
@@ -189,7 +189,7 @@ class TelescopeMcpServer
                 'result' => $result
             ]);
             
-            // Garantir que o resultado esteja no formato esperado pelo MCP
+            // Ensure result is in the format expected by MCP
             if (!isset($result['content'])) {
                 $result = [
                     'content' => [
@@ -213,4 +213,4 @@ class TelescopeMcpServer
             throw $e;
         }
     }
-} 
+}
