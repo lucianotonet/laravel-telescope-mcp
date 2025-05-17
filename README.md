@@ -28,9 +28,9 @@ Make sure you have Laravel Telescope properly installed and configured in your a
 
    ```dotenv
    TELESCOPE_MCP_ENABLED=true
-   TELESCOPE_MCP_PATH=telescope/mcp
+   TELESCOPE_MCP_PATH=telescope-mcp
    ```
-   You can now verify the installation by accessing http://localhost:8000/telescope/mcp/manifest.json in your browser
+   You can now verify the installation by accessing http://localhost:8000/telescope-mcp/manifest.json in your browser
 
 ## Connecting an AI Client
 
@@ -48,7 +48,7 @@ For Cursor (example):
          "args": [
            "-y", 
            "mcp-remote", 
-           "http://localhost:8000/telescope/mcp",
+           "http://localhost:8000/telescope-mcp",
            "--allow-http"
          ],
          "env": { "NODE_TLS_REJECT_UNAUTHORIZED": "0" }

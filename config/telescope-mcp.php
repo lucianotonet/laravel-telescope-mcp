@@ -10,7 +10,7 @@ return [
     | to change this path to anything you like.
     |
     */
-    'path' => env('TELESCOPE_MCP_PATH', 'telescope/mcp'),
+    'path' => env('TELESCOPE_MCP_PATH', 'telescope-mcp'),
 
     /*
     |--------------------------------------------------------------------------
