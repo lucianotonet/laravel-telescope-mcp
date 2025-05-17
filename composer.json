@@ -1,6 +1,6 @@
 {
     "name": "lucianotonet/laravel-telescope-mcp",
-    "version": "0.1.1",
+    "version": "v0.1.1",
     "description": "MCP Server extension for Laravel Telescope",
     "license": "MIT",
     "authors": [
