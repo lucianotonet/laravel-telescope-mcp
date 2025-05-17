@@ -159,7 +159,7 @@ class RedisTool extends AbstractTool
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->created_at);
+            $createdAt = DateFormatter::format($entry->createdAt);
 
             // Extract relevant information from the Redis operation
             $command = $content['command'] ?? 'Unknown';
@@ -229,7 +229,7 @@ class RedisTool extends AbstractTool
         $output .= "Command: " . ($content['command'] ?? 'Unknown') . "\n";
         $output .= "Duration: " . number_format(($content['duration'] ?? 0), 2) . " ms\n";
 
-        $createdAt = DateFormatter::format($entry->created_at);
+        $createdAt = DateFormatter::format($entry->createdAt);
         $output .= "Created At: {$createdAt}\n\n";
 
         // Parameters

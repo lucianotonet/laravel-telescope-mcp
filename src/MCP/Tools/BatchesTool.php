@@ -167,7 +167,7 @@ class BatchesTool extends AbstractTool
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->created_at);
+            $createdAt = DateFormatter::format($entry->createdAt);
 
             // Extract relevant information from the batch operation
             $name = $content['name'] ?? 'Unknown';
@@ -274,7 +274,7 @@ class BatchesTool extends AbstractTool
             $output .= "Completion: " . number_format($progress, 1) . "%\n";
         }
 
-        $createdAt = DateFormatter::format($entry->created_at);
+        $createdAt = DateFormatter::format($entry->createdAt);
         $output .= "\nCreated At: {$createdAt}\n";
 
         // Options and configuration

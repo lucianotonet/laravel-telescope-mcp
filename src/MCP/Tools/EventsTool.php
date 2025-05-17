@@ -119,7 +119,7 @@ class EventsTool extends AbstractTool
             $content = is_array($entry->content) ? $entry->content : [];
             
             // Format the date using DateFormatter
-            $createdAt = DateFormatter::format($entry->created_at);
+            $createdAt = DateFormatter::format($entry->createdAt);
             
             $events[] = [
                 'id' => $entry->id,
@@ -170,7 +170,7 @@ class EventsTool extends AbstractTool
         $content = is_array($entry->content) ? $entry->content : [];
         
         // Format the date using DateFormatter
-        $createdAt = DateFormatter::format($entry->created_at);
+        $createdAt = DateFormatter::format($entry->createdAt);
         
         // Detailed formatting of the event
         $output = "Event Details:\n\n";

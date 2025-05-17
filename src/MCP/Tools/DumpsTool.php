@@ -166,7 +166,7 @@ class DumpsTool extends AbstractTool
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->created_at);
+            $createdAt = DateFormatter::format($entry->createdAt);
 
             // Extract relevant information from the dump entry
             $file = $content['file'] ?? 'Unknown';
@@ -241,7 +241,7 @@ class DumpsTool extends AbstractTool
         $output .= "File: " . ($content['file'] ?? 'Unknown') . "\n";
         $output .= "Line: " . ($content['line'] ?? 'Unknown') . "\n";
 
-        $createdAt = DateFormatter::format($entry->created_at);
+        $createdAt = DateFormatter::format($entry->createdAt);
         $output .= "Created At: {$createdAt}\n\n";
 
         // Dump content

@@ -167,7 +167,7 @@ class GatesTool extends AbstractTool
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->created_at);
+            $createdAt = DateFormatter::format($entry->createdAt);
 
             // Extract relevant information from the gate check
             $ability = $content['ability'] ?? 'Unknown';
@@ -246,7 +246,7 @@ class GatesTool extends AbstractTool
         $output .= "Result: " . (isset($content['result']) && $content['result'] ? 'Allowed' : 'Denied') . "\n";
         $output .= "User: " . ($content['user'] ?? 'Unknown') . "\n";
 
-        $createdAt = DateFormatter::format($entry->created_at);
+        $createdAt = DateFormatter::format($entry->createdAt);
         $output .= "Created At: {$createdAt}\n\n";
 
         // Arguments

@@ -134,7 +134,7 @@ class HttpClientTool extends AbstractTool
             $content = is_array($entry->content) ? $entry->content : [];
             
             // Format the date using DateFormatter
-            $createdAt = DateFormatter::format($entry->created_at);
+            $createdAt = DateFormatter::format($entry->createdAt);
             
             $requests[] = [
                 'id' => $entry->id,
@@ -189,7 +189,7 @@ class HttpClientTool extends AbstractTool
         $content = is_array($entry->content) ? $entry->content : [];
         
         // Format the date using DateFormatter
-        $createdAt = DateFormatter::format($entry->created_at);
+        $createdAt = DateFormatter::format($entry->createdAt);
         
         // Detailed formatting of the request
         $output = "HTTP Client Request Details:\n\n";

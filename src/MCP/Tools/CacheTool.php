@@ -165,7 +165,7 @@ class CacheTool extends AbstractTool
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->created_at);
+            $createdAt = DateFormatter::format($entry->createdAt);
 
             // Extract relevant information from the cache operation
             $operation = $content['type'] ?? 'Unknown';
@@ -232,7 +232,7 @@ class CacheTool extends AbstractTool
         $output .= "Key: " . ($content['key'] ?? 'Unknown') . "\n";
         $output .= "Duration: " . number_format(($content['duration'] ?? 0), 2) . " ms\n";
         
-        $createdAt = DateFormatter::format($entry->created_at);
+        $createdAt = DateFormatter::format($entry->createdAt);
         $output .= "Created At: {$createdAt}\n\n";
 
         // Value (if available)
