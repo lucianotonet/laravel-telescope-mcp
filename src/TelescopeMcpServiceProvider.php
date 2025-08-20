@@ -49,20 +49,8 @@ class TelescopeMcpServiceProvider extends ServiceProvider
     
     protected function configureLogging()
     {
-        // Criar diretório de logs se não existir
-        $logPath = dirname(config('telescope-mcp.logging.path'));
-        if (!is_dir($logPath)) {
-            mkdir($logPath, 0755, true);
-        }
-        
         // Inicializar logger
         Logger::getInstance();
-        
-        // Log inicial
-        Logger::info('Telescope MCP initialized', [
-            'version' => '1.0.0',
-            'config' => config('telescope-mcp')
-        ]);
     }
     
     protected function registerTestRoute()

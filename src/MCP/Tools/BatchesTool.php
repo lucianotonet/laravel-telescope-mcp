@@ -212,6 +212,7 @@ class BatchesTool extends AbstractTool
 
             // Truncate name if too long
             $name = $batch['name'];
+            $name = $this->safeString($name);
             if (strlen($name) > 30) {
                 $name = substr($name, 0, 27) . "...";
             }

@@ -177,6 +177,7 @@ class DumpsTool extends AbstractTool
             if (is_array($dump) || is_object($dump)) {
                 $dump = json_encode($dump);
             }
+            $dump = $this->safeString($dump);
             if (strlen($dump) > 50) {
                 $dump = substr($dump, 0, 47) . "...";
             }
@@ -199,6 +200,7 @@ class DumpsTool extends AbstractTool
         foreach ($dumps as $dump) {
             // Truncate file path if too long
             $file = $dump['file'];
+            $file = $this->safeString($file);
             if (strlen($file) > 40) {
                 $file = "..." . substr($file, -37);
             }

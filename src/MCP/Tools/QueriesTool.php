@@ -54,7 +54,10 @@ class QueriesTool extends AbstractTool
                         'items' => [
                             'type' => 'object',
                             'properties' => [
-                                'type' => ['type' => 'string'],
+                                'type' => [
+                                    'type' => 'string',
+                                    'enum' => ['text', 'json', 'markdown', 'html']
+                                ],
                                 'text' => ['type' => 'string']
                             ],
                             'required' => ['type', 'text']
@@ -142,6 +145,7 @@ class QueriesTool extends AbstractTool
         foreach ($queries as $query) {
             // Truncar SQL longa
             $sql = $query['sql'];
+            $sql = $this->safeString($sql);
             if (strlen($sql) > 50) {
                 $sql = substr($sql, 0, 47) . "...";
             }
@@ -156,7 +160,12 @@ class QueriesTool extends AbstractTool
             );
         }
         
-        return $this->formatResponse($table);
+        $combinedText = $table . "\n\n--- JSON Data ---\n" . json_encode([
+            'total' => count($queries),
+            'queries' => $queries
+        ], JSON_PRETTY_PRINT);
+        
+        return $this->formatResponse($combinedText);
     }
 
     /**
@@ -193,6 +202,15 @@ class QueriesTool extends AbstractTool
             $output .= "Bindings:\n" . json_encode($content['bindings'], JSON_PRETTY_PRINT) . "\n";
         }
         
-        return $this->formatResponse($output);
+        $combinedText = $output . "\n\n--- JSON Data ---\n" . json_encode([
+            'id' => $entry->id,
+            'connection' => $content['connection'] ?? 'default',
+            'duration' => $content['time'] ?? 0,
+            'created_at' => $createdAt,
+            'sql' => $content['sql'] ?? 'Unknown',
+            'bindings' => $content['bindings'] ?? []
+        ], JSON_PRETTY_PRINT);
+        
+        return $this->formatResponse($combinedText);
     }
 } 

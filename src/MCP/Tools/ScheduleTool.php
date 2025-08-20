@@ -175,11 +175,13 @@ class ScheduleTool extends AbstractTool
         foreach ($tasks as $task) {
             // Truncate fields if too long
             $command = $task['command'];
+            $command = $this->safeString($command);
             if (strlen($command) > 30) {
                 $command = substr($command, 0, 27) . "...";
             }
 
             $description = $task['description'];
+            $description = $this->safeString($description);
             if (strlen($description) > 30) {
                 $description = substr($description, 0, 27) . "...";
             }

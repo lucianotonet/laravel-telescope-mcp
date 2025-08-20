@@ -184,9 +184,11 @@ class RedisTool extends AbstractTool
         foreach ($operations as $op) {
             // Format parameters for display
             $params = implode(' ', array_map(function($param) {
-                return strlen($param) > 20 ? substr($param, 0, 17) . "..." : $param;
+                $paramStr = $this->safeString($param);
+                return strlen($paramStr) > 20 ? substr($paramStr, 0, 17) . "..." : $paramStr;
             }, $op['parameters']));
 
+            $params = $this->safeString($params);
             if (strlen($params) > 50) {
                 $params = substr($params, 0, 47) . "...";
             }

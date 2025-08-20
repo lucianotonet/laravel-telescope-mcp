@@ -167,11 +167,13 @@ class ViewsTool extends AbstractTool
         foreach ($views as $view) {
             // Truncate name and path if too long
             $name = $view['name'];
+            $name = $this->safeString($name);
             if (strlen($name) > 30) {
                 $name = substr($name, 0, 27) . "...";
             }
 
             $path = $view['path'];
+            $path = $this->safeString($path);
             if (strlen($path) > 50) {
                 $path = substr($path, 0, 47) . "...";
             }

@@ -190,6 +190,7 @@ class CacheTool extends AbstractTool
         foreach ($operations as $op) {
             // Truncate key if too long
             $key = $op['key'];
+            $key = $this->safeString($key);
             if (strlen($key) > 50) {
                 $key = substr($key, 0, 47) . "...";
             }

@@ -123,23 +123,7 @@ class TelescopeMcpServer
                     'properties' => $schema['parameters']['properties'] ?? [],
                     'required' => $schema['parameters']['required'] ?? []
                 ],
-                'outputSchema' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'content' => [
-                            'type' => 'array',
-                            'items' => [
-                                'type' => 'object',
-                                'properties' => [
-                                    'type' => ['type' => 'string'],
-                                    'text' => ['type' => 'string']
-                                ],
-                                'required' => ['type', 'text']
-                            ]
-                        ]
-                    ],
-                    'required' => ['content']
-                ]
+
             ];
         }
         
@@ -190,7 +174,7 @@ class TelescopeMcpServer
             ]);
             
             // Ensure result is in the format expected by MCP
-            if (!isset($result['content'])) {
+            if (!isset($result['content']) || !is_array($result['content'])) {
                 $result = [
                     'content' => [
                         [
@@ -199,6 +183,28 @@ class TelescopeMcpServer
                         ]
                     ]
                 ];
+            } else {
+                // Validate and normalize content format
+                $validatedContent = [];
+                foreach ($result['content'] as $item) {
+                    if (is_array($item) && isset($item['type']) && isset($item['text'])) {
+                        $validatedContent[] = [
+                            'type' => (string) $item['type'],
+                            'text' => (string) $item['text']
+                        ];
+                    }
+                }
+                
+                if (empty($validatedContent)) {
+                    $validatedContent = [
+                        [
+                            'type' => 'text',
+                            'text' => 'No valid content returned'
+                        ]
+                    ];
+                }
+                
+                $result['content'] = $validatedContent;
             }
             
             return $result;

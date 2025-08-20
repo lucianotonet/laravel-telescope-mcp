@@ -60,23 +60,7 @@ class RequestsTool extends AbstractTool
                 ],
                 'required' => []
             ],
-            'outputSchema' => [
-                'type' => 'object',
-                'properties' => [
-                    'content' => [
-                        'type' => 'array',
-                        'items' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'type' => ['type' => 'string'],
-                                'text' => ['type' => 'string']
-                            ],
-                            'required' => ['type', 'text']
-                        ]
-                    ]
-                ],
-                'required' => ['content']
-            ],
+
             'examples' => [
                 [
                     'description' => 'List last 10 requests',
@@ -187,6 +171,7 @@ class RequestsTool extends AbstractTool
         foreach ($requests as $request) {
             // Truncate URI if too long
             $uri = $request['uri'];
+            $uri = $this->safeString($uri);
             if (strlen($uri) > 50) {
                 $uri = substr($uri, 0, 47) . "...";
             }
@@ -211,7 +196,12 @@ class RequestsTool extends AbstractTool
             );
         }
 
-        return $this->formatResponse($table);
+        $combinedText = $table . "\n\n--- JSON Data ---\n" . json_encode([
+            'total' => count($requests),
+            'requests' => $requests
+        ], JSON_PRETTY_PRINT);
+        
+        return $this->formatResponse($combinedText);
     }
 
     /**
@@ -270,13 +260,27 @@ class RequestsTool extends AbstractTool
 
         // Response content (if available and not too large)
         if (!empty($content['response'])) {
-            $response = $content['response'];
+            $response = $this->safeString($content['response']);
+            
             if (strlen($response) > 1000) {
                 $response = substr($response, 0, 1000) . "\n... (response truncated)";
             }
             $output .= "Response Content:\n" . $response . "\n";
         }
 
-        return $this->formatResponse($output);
+        $combinedText = $output . "\n\n--- JSON Data ---\n" . json_encode([
+            'id' => $entry->id,
+            'method' => $content['method'] ?? 'Unknown',
+            'uri' => $content['uri'] ?? 'Unknown',
+            'status' => $content['response_status'] ?? 'Unknown',
+            'duration' => $content['duration'] ?? 0,
+            'created_at' => $createdAt,
+            'headers' => $content['headers'] ?? [],
+            'payload' => $content['payload'] ?? [],
+            'response_headers' => $content['response_headers'] ?? [],
+            'response' => $content['response'] ?? null
+        ], JSON_PRETTY_PRINT);
+        
+        return $this->formatResponse($combinedText);
     }
 } 

@@ -146,6 +146,7 @@ class ModelsTool extends AbstractTool
         foreach ($operations as $op) {
             // Truncar nome do modelo se muito longo
             $model = $op['model'];
+            $model = $this->safeString($model);
             if (strlen($model) > 40) {
                 $model = substr($model, 0, 37) . "...";
             }

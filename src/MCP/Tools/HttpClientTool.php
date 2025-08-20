@@ -54,23 +54,7 @@ class HttpClientTool extends AbstractTool
                 ],
                 'required' => []
             ],
-            'outputSchema' => [
-                'type' => 'object',
-                'properties' => [
-                    'content' => [
-                        'type' => 'array',
-                        'items' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'type' => ['type' => 'string'],
-                                'text' => ['type' => 'string']
-                            ],
-                            'required' => ['type', 'text']
-                        ]
-                    ]
-                ],
-                'required' => ['content']
-            ]
+
         ];
     }
 
@@ -122,7 +106,7 @@ class HttpClientTool extends AbstractTool
         }
         
         // Buscar entradas usando o repositório
-        $entries = $this->entriesRepository->get(EntryType::HTTP_CLIENT_REQUEST, $options);
+        $entries = $this->entriesRepository->get(EntryType::CLIENT_REQUEST, $options);
         
         if (empty($entries)) {
             return $this->formatResponse("Nenhuma requisição HTTP encontrada.");
@@ -154,6 +138,7 @@ class HttpClientTool extends AbstractTool
         foreach ($requests as $request) {
             // Truncar URL longa
             $url = $request['url'];
+            $url = $this->safeString($url);
             if (strlen($url) > 50) {
                 $url = substr($url, 0, 47) . "...";
             }
@@ -180,7 +165,7 @@ class HttpClientTool extends AbstractTool
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
         
         // Buscar a entrada específica
-        $entry = $this->getEntryDetails(EntryType::HTTP_CLIENT_REQUEST, $id);
+        $entry = $this->getEntryDetails(EntryType::CLIENT_REQUEST, $id);
         
         if (!$entry) {
             return $this->formatError("Requisição não encontrada: {$id}");

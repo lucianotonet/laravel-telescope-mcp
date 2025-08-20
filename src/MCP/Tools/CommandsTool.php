@@ -189,6 +189,7 @@ class CommandsTool extends AbstractTool
         foreach ($commands as $cmd) {
             // Combine args and opts, truncate if too long
             $params = trim($cmd['arguments']);
+            $params = $this->safeString($params);
             if (strlen($params) > 40) {
                 $params = substr($params, 0, 37) . "...";
             }

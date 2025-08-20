@@ -80,7 +80,10 @@ class LogsTool extends AbstractTool
                         'items' => [
                             'type' => 'object',
                             'properties' => [
-                                'type' => ['type' => 'string'],
+                                'type' => [
+                                    'type' => 'string',
+                                    'enum' => ['text', 'json', 'markdown', 'html']
+                                ],
                                 'text' => ['type' => 'string']
                             ],
                             'required' => ['type', 'text']
@@ -188,6 +191,7 @@ class LogsTool extends AbstractTool
         foreach ($logs as $log) {
             // Truncate message if too long
             $message = $log['message'];
+            $message = $this->safeString($message);
             if (strlen($message) > 60) {
                 $message = substr($message, 0, 57) . "...";
             }
@@ -200,7 +204,12 @@ class LogsTool extends AbstractTool
             );
         }
 
-        return $this->formatResponse($table);
+        $combinedText = $table . "\n\n--- JSON Data ---\n" . json_encode([
+            'total' => count($logs),
+            'logs' => $logs
+        ], JSON_PRETTY_PRINT);
+        
+        return $this->formatResponse($combinedText);
     }
 
     /**
@@ -236,6 +245,14 @@ class LogsTool extends AbstractTool
             $output .= "Context:\n" . json_encode($content['context'], JSON_PRETTY_PRINT) . "\n";
         }
 
-        return $this->formatResponse($output);
+        $combinedText = $output . "\n\n--- JSON Data ---\n" . json_encode([
+            'id' => $entry->id,
+            'level' => $content['level'] ?? 'Unknown',
+            'message' => $content['message'] ?? 'No message',
+            'created_at' => $createdAt,
+            'context' => $content['context'] ?? []
+        ], JSON_PRETTY_PRINT);
+        
+        return $this->formatResponse($combinedText);
     }
 } 

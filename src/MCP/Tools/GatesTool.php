@@ -192,11 +192,13 @@ class GatesTool extends AbstractTool
         foreach ($checks as $check) {
             // Truncate fields if too long
             $ability = $check['ability'];
+            $ability = $this->safeString($ability);
             if (strlen($ability) > 30) {
                 $ability = substr($ability, 0, 27) . "...";
             }
 
             $user = $check['user'];
+            $user = $this->safeString($user);
             if (strlen($user) > 30) {
                 $user = substr($user, 0, 27) . "...";
             }

@@ -3,32 +3,14 @@
 namespace LucianoTonet\TelescopeMcp\Support;
 
 use Illuminate\Support\Facades\Log;
-use Monolog\Handler\StreamHandler;
-use Monolog\Logger as Monolog;
 
 class Logger
 {
     protected static $instance = null;
-    protected $logger;
     
     protected function __construct()
     {
-        $config = config('telescope-mcp.logging');
-        
-        if (!$config['enabled']) {
-            return;
-        }
-        
-        // Create Monolog logger
-        $this->logger = new Monolog('telescope-mcp');
-        
-        // Add handler for file without rotation by days
-        $handler = new StreamHandler(
-            $config['path'],
-            $this->getMonologLevel($config['level'])
-        );
-        
-        $this->logger->pushHandler($handler);
+        // Empty constructor
     }
     
     public static function getInstance()
@@ -39,35 +21,14 @@ class Logger
         return self::$instance;
     }
     
-    protected function getMonologLevel($level)
-    {
-        $levels = [
-            'debug' => Monolog::DEBUG,
-            'info' => Monolog::INFO,
-            'notice' => Monolog::NOTICE,
-            'warning' => Monolog::WARNING,
-            'error' => Monolog::ERROR,
-            'critical' => Monolog::CRITICAL,
-            'alert' => Monolog::ALERT,
-            'emergency' => Monolog::EMERGENCY,
-        ];
-        
-        return $levels[strtolower($level)] ?? Monolog::DEBUG;
-    }
-    
     public function log($level, $message, array $context = [])
     {
-        if (!config('telescope-mcp.logging.enabled')) {
+        if (!config('telescope-mcp.logging.enabled', true)) {
             return;
         }
         
-        // Log to the package-specific file
-        if ($this->logger) {
-            $this->logger->log($level, $message, $context);
-        }
-        
-        // Also log to the default Laravel channel
-        Log::channel(config('telescope-mcp.logging.channel'))->log($level, $message, $context);
+        // Log using Laravel's default channel
+        Log::log($level, $message, $context);
     }
     
     public static function debug($message, array $context = [])

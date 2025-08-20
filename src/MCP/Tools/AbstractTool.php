@@ -108,15 +108,10 @@ abstract class AbstractTool
      */
     protected function formatResponse($data, string $type = 'text'): array
     {
-        // If already formatted with 'content', return it directly
-        if (is_array($data) && isset($data['content'])) {
-            return $data;
-        }
-        
         // Convert to string if needed
         $text = is_string($data) ? $data : json_encode($data, JSON_PRETTY_PRINT);
         
-        // Return in expected MCP format
+        // Return in strict MCP format
         return [
             'content' => [
                 [
@@ -137,4 +132,60 @@ abstract class AbstractTool
     {
         return $this->formatResponse("Error: " . $message, 'text');
     }
+    
+    /**
+     * Safely converts a value to string for strlen() operations
+     * 
+     * @param mixed $value The value to convert
+     * @return string The string representation
+     */
+    protected function safeString($value): string
+    {
+        if (is_array($value)) {
+            return json_encode($value, JSON_PRETTY_PRINT);
+        } elseif (is_object($value)) {
+            return json_encode($value, JSON_PRETTY_PRINT);
+        } elseif (is_null($value)) {
+            return '';
+        } elseif (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        } elseif (is_numeric($value)) {
+            return (string) $value;
+        } else {
+            return (string) $value;
+        }
+    }
+    
+    /**
+     * Creates a structured response with multiple content types
+     * 
+     * @param array $contentItems Array of content items with 'type' and 'text' keys
+     * @return array Response in MCP format
+     */
+    protected function formatStructuredResponse(array $contentItems): array
+    {
+        $validatedContent = [];
+        
+        foreach ($contentItems as $item) {
+            if (is_array($item) && isset($item['type']) && isset($item['text'])) {
+                $validatedContent[] = [
+                    'type' => (string) $item['type'],
+                    'text' => (string) $item['text']
+                ];
+            }
+        }
+        
+        if (empty($validatedContent)) {
+            $validatedContent = [
+                [
+                    'type' => 'text',
+                    'text' => 'No content available'
+                ]
+            ];
+        }
+        
+        return ['content' => $validatedContent];
+    }
+    
+
 } 

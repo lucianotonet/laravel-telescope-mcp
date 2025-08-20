@@ -137,6 +137,7 @@ class EventsTool extends AbstractTool
         foreach ($events as $event) {
             // Truncar nome longo
             $name = $event['name'];
+            $name = $this->safeString($name);
             if (strlen($name) > 60) {
                 $name = substr($name, 0, 57) . "...";
             }

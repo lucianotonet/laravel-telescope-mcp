@@ -14,32 +14,34 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Telescope MCP Master Switch
+    |--------------------------------------------------------------------------
+    |
+    | This option may be used to disable Telescope MCP.
+    |
+    */
+    'enabled' => env('TELESCOPE_MCP_ENABLED', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Telescope MCP Route Middleware
     |--------------------------------------------------------------------------
     |
-    | These middleware will be assigned to every Telescope MCP route, giving you
-    | the chance to add your own middleware to this list or change any of
-    | the existing middleware. Or, you can simply stick with this list.
+    | These middleware will be assigned to every Telescope MCP route.
     |
     */
-    'middleware' => [
-        // 'web',
-    ],
+    'middleware' => ['api'],
 
-    'enabled' => env('TELESCOPE_MCP_ENABLED', true),
-    
     /*
     |--------------------------------------------------------------------------
-    | Telescope MCP Logging
+    | Telescope MCP Logging Configuration
     |--------------------------------------------------------------------------
     |
-    | Here you may configure the logging settings for Telescope MCP.
+    | Here you may configure the log settings for Telescope MCP.
     |
     */
     'logging' => [
         'enabled' => env('TELESCOPE_MCP_LOGGING_ENABLED', true),
-        'level' => env('TELESCOPE_MCP_LOGGING_LEVEL', 'debug'),
-        'path' => storage_path('logs/telescope-mcp.log'),
-        'channel' => env('TELESCOPE_MCP_LOGGING_CHANNEL', 'stack'),
+        'channel' => env('TELESCOPE_MCP_LOG_CHANNEL', 'stack'),
     ],
 ]; 

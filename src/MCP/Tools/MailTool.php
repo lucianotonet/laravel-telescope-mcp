@@ -156,11 +156,13 @@ class MailTool extends AbstractTool
         foreach ($mails as $mail) {
             // Truncar assunto e destinatários se muito longos
             $subject = $mail['subject'];
+            $subject = $this->safeString($subject);
             if (strlen($subject) > 40) {
                 $subject = substr($subject, 0, 37) . "...";
             }
             
             $to = $mail['to'];
+            $to = $this->safeString($to);
             if (strlen($to) > 40) {
                 $to = substr($to, 0, 37) . "...";
             }

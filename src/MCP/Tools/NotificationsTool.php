@@ -189,11 +189,13 @@ class NotificationsTool extends AbstractTool
         foreach ($notifications as $notif) {
             // Truncate fields if too long
             $notifiable = $notif['notifiable'];
+            $notifiable = $this->safeString($notifiable);
             if (strlen($notifiable) > 30) {
                 $notifiable = substr($notifiable, 0, 27) . "...";
             }
 
             $notification = $notif['notification'];
+            $notification = $this->safeString($notification);
             if (strlen($notification) > 30) {
                 $notification = substr($notification, 0, 27) . "...";
             }

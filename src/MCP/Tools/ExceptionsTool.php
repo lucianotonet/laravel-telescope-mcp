@@ -49,7 +49,10 @@ class ExceptionsTool extends AbstractTool
                         'items' => [
                             'type' => 'object',
                             'properties' => [
-                                'type' => ['type' => 'string'],
+                                'type' => [
+                                    'type' => 'string',
+                                    'enum' => ['text', 'json', 'markdown', 'html']
+                                ],
                                 'text' => ['type' => 'string']
                             ],
                             'required' => ['type', 'text']
@@ -150,6 +153,7 @@ class ExceptionsTool extends AbstractTool
         foreach ($exceptions as $exception) {
             // Truncar mensagem longa
             $message = $exception['message'];
+            $message = $this->safeString($message);
             if (strlen($message) > 40) {
                 $message = substr($message, 0, 37) . "...";
             }
@@ -170,7 +174,12 @@ class ExceptionsTool extends AbstractTool
             );
         }
         
-        return $this->formatResponse($table);
+        $combinedText = $table . "\n\n--- JSON Data ---\n" . json_encode([
+            'total' => count($exceptions),
+            'exceptions' => $exceptions
+        ], JSON_PRETTY_PRINT);
+        
+        return $this->formatResponse($combinedText);
     }
     
     /**
@@ -231,6 +240,17 @@ class ExceptionsTool extends AbstractTool
             $output .= json_encode($content['context'], JSON_PRETTY_PRINT);
         }
         
-        return $this->formatResponse($output);
+        $combinedText = $output . "\n\n--- JSON Data ---\n" . json_encode([
+            'id' => $entry->id,
+            'class' => $content['class'] ?? 'Unknown',
+            'message' => $content['message'] ?? 'No message',
+            'file' => $content['file'] ?? 'Unknown',
+            'line' => $content['line'] ?? 'Unknown',
+            'occurred_at' => $createdAt,
+            'trace' => $content['trace'] ?? [],
+            'context' => $content['context'] ?? []
+        ], JSON_PRETTY_PRINT);
+        
+        return $this->formatResponse($combinedText);
     }
 } 

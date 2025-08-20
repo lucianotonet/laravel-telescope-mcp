@@ -147,6 +147,7 @@ class JobsTool extends AbstractTool
         foreach ($jobs as $job) {
             // Truncar nome longo
             $name = $job['name'];
+            $name = $this->safeString($name);
             if (strlen($name) > 40) {
                 $name = substr($name, 0, 37) . "...";
             }
