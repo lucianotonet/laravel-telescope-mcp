@@ -2,62 +2,88 @@
 
 namespace LucianoTonet\TelescopeMcp;
 
-use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
-use LucianoTonet\TelescopeMcp\Console\ConnectMcpCommand;
 use LucianoTonet\TelescopeMcp\Support\Logger;
+use RuntimeException;
 
+/**
+ * Main Service Provider for Laravel Telescope MCP.
+ *
+ * This provider registers the Telescope MCP tools for Laravel Boost integration.
+ * It requires Laravel Telescope and Laravel Boost to function.
+ */
 class TelescopeMcpServiceProvider extends ServiceProvider
 {
-    public function boot()
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
     {
-        $this->registerRoutes();
-        
+        $this->ensureTelescopeIsInstalled();
+
         if ($this->app->runningInConsole()) {
-            $this->publishes([
-                __DIR__.'/../config/telescope-mcp.php' => config_path('telescope-mcp.php'),
-            ], 'telescope-mcp-config');
-            
-            $this->commands([
-                ConnectMcpCommand::class,
-            ]);
+            $this->registerPublishing();
+            $this->registerCommands();
         }
-        
-        // Configurar logger
+
         $this->configureLogging();
-        
-        // Registrar rota de teste para gerar entradas no Telescope
-        $this->registerTestRoute();
     }
 
-    public function register()
+    /**
+     * Ensure Laravel Telescope is installed.
+     *
+     * @throws RuntimeException
+     */
+    protected function ensureTelescopeIsInstalled(): void
+    {
+        if (! class_exists(\Laravel\Telescope\Telescope::class)) {
+            throw new RuntimeException(
+                'Laravel Telescope is required for Telescope MCP to work. '.
+                'Please install it with: composer require laravel/telescope --dev'
+            );
+        }
+    }
+
+    /**
+     * Register any application services.
+     */
+    public function register(): void
     {
         $this->mergeConfigFrom(
-            __DIR__.'/../config/telescope-mcp.php', 'telescope-mcp'
+            __DIR__.'/../config/telescope-mcp.php',
+            'telescope-mcp'
         );
+
+        // Register the Boost provider for skill discovery
+        $this->app->register(TelescopeBoostServiceProvider::class);
     }
 
-    protected function registerRoutes()
+    /**
+     * Register the package's publishable resources.
+     */
+    protected function registerPublishing(): void
     {
-        Route::group([
-            'prefix' => config('telescope-mcp.path', 'telescope-mcp'),
-            'middleware' => config('telescope-mcp.middleware', ['web'])
-        ], function () {
-            $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
-        });
+        $this->publishes([
+            __DIR__.'/../config/telescope-mcp.php' => config_path('telescope-mcp.php'),
+        ], 'telescope-mcp-config');
     }
-    
-    protected function configureLogging()
+
+    /**
+     * Register the package's Artisan commands.
+     */
+    protected function registerCommands(): void
     {
-        // Inicializar logger
+        $this->commands([
+            Console\InstallCommand::class,
+            Console\GenerateBoostToolsCommand::class,
+        ]);
+    }
+
+    /**
+     * Configure the logging system.
+     */
+    protected function configureLogging(): void
+    {
         Logger::getInstance();
     }
-    
-    protected function registerTestRoute()
-    {
-        Route::get('/telescope-mcp-test', function () {
-            Logger::info('Test route accessed');
-            return response()->json(['message' => 'Teste do Telescope MCP']);
-        });
-    }
-} 
+}
