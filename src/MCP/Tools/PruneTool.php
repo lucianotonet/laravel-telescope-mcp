@@ -87,14 +87,14 @@ class PruneTool extends AbstractTool
             $hours = isset($params['hours']) ? (int)$params['hours'] : 24;
 
             // Execute the prune command
-            $command = sprintf('php artisan telescope:prune --hours=%d', $hours);
-            exec($command, $output, $returnCode);
+            $exitCode = Artisan::call('telescope:prune', ['--hours' => $hours]);
+            $output = Artisan::output();
 
-            if ($returnCode !== 0) {
-                throw new \Exception('Failed to execute prune command: ' . implode("\n", $output));
+            if ($exitCode !== 0) {
+                throw new \Exception('Failed to execute prune command. Exit code: ' . $exitCode);
             }
 
-            return $this->formatResponse(implode("\n", $output));
+            return $this->formatResponse($output ?: 'Pruned entries successfully.');
         } catch (\Exception $e) {
             Logger::error($this->getName() . ' execution error', [
                 'error' => $e->getMessage(),

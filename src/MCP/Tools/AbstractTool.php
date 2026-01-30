@@ -3,7 +3,6 @@
 namespace LucianoTonet\TelescopeMcp\MCP\Tools;
 
 use Laravel\Telescope\Contracts\EntriesRepository;
-use LucianoTonet\TelescopeMcp\Support\JsonRpcResponse;
 use LucianoTonet\TelescopeMcp\Support\Logger;
 
 /**

@@ -24,7 +24,6 @@ use LucianoTonet\TelescopeMcp\MCP\Tools\RedisTool;
 use LucianoTonet\TelescopeMcp\MCP\Tools\ScheduleTool;
 use LucianoTonet\TelescopeMcp\MCP\Tools\ViewsTool;
 use Illuminate\Support\Facades\Log;
-use LucianoTonet\TelescopeMcp\Support\JsonRpcResponse;
 use LucianoTonet\TelescopeMcp\Support\Logger;
 
 class TelescopeMcpServer
