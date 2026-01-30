@@ -25,7 +25,6 @@
         "issues": "https://github.com/lucianotonet/laravel-telescope-mcp/issues",
         "source": "https://github.com/lucianotonet/laravel-telescope-mcp"
     },
-    "version": "1.0.0-beta.1",
     "require": {
         "php": "^8.2",
         "laravel/boost": "^2.0",
