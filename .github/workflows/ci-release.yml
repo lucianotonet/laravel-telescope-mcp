@@ -41,7 +41,7 @@ jobs:
         run: composer install --prefer-dist --no-progress
 
       - name: Run tests
-        run: vendor/bin/phpunit --debug
+        run: vendor/bin/pest
 
   publish:
     name: Publish to Packagist
