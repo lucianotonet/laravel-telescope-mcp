@@ -2,13 +2,13 @@
 
 namespace Tests;
 
-use Orchestra\Testbench\TestCase as BaseTestCase;
-use LucianoTonet\TelescopeMcp\TelescopeMcpServiceProvider;
 use Laravel\Telescope\TelescopeServiceProvider;
+use LucianoTonet\TelescopeMcp\TelescopeMcpServiceProvider;
+use Orchestra\Testbench\TestCase as BaseTestCase;
 
 abstract class TestCase extends BaseTestCase
 {
-    protected function getPackageProviders($app)
+    protected function getPackageProviders($app): array
     {
         return [
             TelescopeServiceProvider::class,
@@ -16,25 +16,21 @@ abstract class TestCase extends BaseTestCase
         ];
     }
 
-    protected function defineEnvironment($app)
+    protected function defineEnvironment($app): void
     {
         // Setup default database to use sqlite :memory:
         $app['config']->set('database.default', 'testbench');
         $app['config']->set('database.connections.testbench', [
-            'driver'   => 'sqlite',
+            'driver' => 'sqlite',
             'database' => ':memory:',
-            'prefix'   => '',
+            'prefix' => '',
         ]);
 
         // Configure Telescope MCP
         $app['config']->set('telescope-mcp', [
             'enabled' => true,
-            'path' => 'telescope-mcp',
-            'middleware' => ['web'],
             'logging' => [
                 'enabled' => true,
-                'level' => 'debug',
-                'path' => storage_path('logs/telescope-mcp-test.log'),
                 'channel' => 'stack',
             ],
         ]);
@@ -43,24 +39,15 @@ abstract class TestCase extends BaseTestCase
         $app['config']->set('telescope.enabled', true);
         $app['config']->set('telescope.storage.driver', 'database');
         $app['config']->set('telescope.storage.database.connection', 'testbench');
-        // Prevent Telescope from attempting to migrate in every test after the first run with RefreshDatabase
         $app['config']->set('telescope.migrations', false);
-
-        // Ensure log directory exists
-        $logDir = dirname(storage_path('logs/telescope-mcp-test.log'));
-        if (!is_dir($logDir)) {
-            mkdir($logDir, 0755, true);
-        }
 
         // Set application key for encryption
         $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
     }
 
-    protected function defineRoutes($router)
+    protected function defineDatabaseMigrations(): void
     {
-        // Define any additional routes needed for testing
-        $router->get('/test-route', function () {
-            abort(404);
-        });
+        $this->loadLaravelMigrations();
+        $this->loadMigrationsFrom(__DIR__.'/../vendor/laravel/telescope/database/migrations');
     }
-} 
+}
