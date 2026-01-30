@@ -1,272 +1,146 @@
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/lucianotonet/laravel-telescope-mcp.svg)](https://packagist.org/packages/lucianotonet/laravel-telescope-mcp)
-[![Downloads](https://img.shields.io/packagist/dt/lucianotonet/laravel-telescope-mcp.svg)](https://packagist.org/packages/lucianotonet/laravel-telescope-mcp)
-[![License](https://img.shields.io/github/license/lucianotonet/laravel-telescope-mcp)](LICENSE)
-
 # Laravel Telescope MCP
 
-An extension for Laravel Telescope that exposes telemetry data via the Model Context Protocol (MCP) to AI assistants (e.g., Cursor, Claude, Copilot Chat). Ideal for developers who use Telescope to inspect application metrics and require quick, precise insights.
+**Laravel Boost Telescope Plugin - AI-Powered Debugging**
 
-## Overview
+Give AI superpowers to debug your Laravel applications with access to Telescope's rich, structured debugging data.
 
-Telescope MCP exposes all Laravel Telescope telemetry data via the Model Context Protocol (MCP), enabling AI assistants to directly access and analyze application metrics. This provides developers with instant insights into logs, slow queries, HTTP requests, exceptions, jobs, and more through natural language queries.
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/lucianotonet/laravel-telescope-mcp.svg)](https://packagist.org/packages/lucianotonet/laravel-telescope-mcp)
+[![Total Downloads](https://img.shields.io/packagist/dt/lucianotonet/laravel-telescope-mcp.svg)](https://packagist.org/packages/lucianotonet/laravel-telescope-mcp)
+[![License](https://img.shields.io/packagist/l/lucianotonet/laravel-telescope-mcp.svg)](https://packagist.org/packages/lucianotonet/laravel-telescope-mcp)
 
-**Status**: ✅ **19 MCP tools fully operational and integrated**
+## The Difference
+
+While Laravel Boost reads log files, this plugin gives your AI assistant access to Telescope's rich, structured debugging data.
+
+| Laravel Boost Alone | + Telescope Plugin |
+|---------------------|-------------------|
+| "Error in log file" | "Query on `orders` table taking 2s due to missing index on `user_id`" |
+| Generic stack trace | Full request context + query history + event timeline |
+| "Job failed" | "Job failed on 3rd retry with payload X after queries Y and Z" |
+
+## Requirements
+
+- PHP 8.1+
+- Laravel 10, 11, or 12
+- Laravel Telescope 4.0+
 
 ## Installation
 
-Make sure you have Laravel Telescope properly installed and configured in your application before proceeding
-
-1. Add the package via Composer:
-
-    ```bash
-    composer require lucianotonet/laravel-telescope-mcp
-    ```
-2. Publish the configuration (optional):
-
-   ```bash
-   php artisan vendor:publish --provider="LucianoTonet\TelescopeMcp\TelescopeMcpServiceProvider"
-   ```
-3. Update your `.env` (optional):
-
-   ```dotenv
-   TELESCOPE_MCP_ENABLED=true
-   TELESCOPE_MCP_PATH=telescope-mcp
-   ```
-   You can now verify the installation by accessing http://localhost:8000/telescope-mcp/manifest.json in your browser
-
-## Connecting an AI Client
-
-For Cursor (example):
-
-1. Open Cursor command palette (Cmd/Ctrl+Shift+P).
-2. Run **View: Open MCP Settings**.
-3. Add this configuration:
-
-   ```json
-   {
-     "mcpServers": {
-       "Laravel Telescope MCP": {
-         "command": "npx",
-         "args": [
-           "-y", 
-           "mcp-remote", 
-           "http://127.0.0.1:8000/telescope-mcp",
-           "--allow-http"
-         ],
-         "env": { "NODE_TLS_REJECT_UNAUTHORIZED": "0" }
-       }
-     }
-   }
-   ```
-   
-   > **Important**: Use `127.0.0.1` instead of `localhost` to avoid IPv6 connection issues
-   > Make sure the URL matches your `.env` configuration, combining `APP_URL` with `TELESCOPE_MCP_PATH`
-  
-4. For HTTPS, you can omit `--allow-http` and `NODE_TLS_REJECT_UNAUTHORIZED` like this:
-   
-   ```json
-   {
-     "mcpServers": {
-       "Laravel Telescope MCP": {
-         "command": "npx",
-         "args": [
-           "-y", 
-           "mcp-remote", 
-           "https://example.com/telescope-mcp"            
-         ]
-       }
-     }
-   }
-   ```
-
-## Troubleshooting
-
-### Connection Refused Error
-
-If you encounter `ECONNREFUSED` errors when trying to connect:
-
-**Problem**: The MCP client is trying to connect via IPv6 (`::1`) but your Laravel server only accepts IPv4 connections.
-
-**Solution**: Use `127.0.0.1` instead of `localhost` in your MCP configuration URL.
-
-**Example**:
-```json
-// ❌ This may cause IPv6 connection issues
-"http://localhost:8000/telescope-mcp"
-
-// ✅ Use this to force IPv4 connection
-"http://127.0.0.1:8000/telescope-mcp"
-```
-
-**Alternative**: If you prefer using `localhost`, you can start your Laravel server with IPv6 support:
 ```bash
-php artisan serve --host=0.0.0.0 --port=8000
+composer require lucianotonet/laravel-telescope-mcp --dev
 ```
 
-### MCP Tool Issues
+### Integration with Laravel Boost
 
-**Problem**: Some tools may show empty results or errors.
-
-**Solutions**:
-1. **Ensure Telescope is recording data**: Check if your application is generating the type of data you're querying
-2. **Verify tool parameters**: Some tools require specific parameters (e.g., `slow: true` for queries)
-3. **Check data freshness**: Some tools may not have recent data depending on your application activity
-
-**Tool-specific notes**:
-- **Prune tool**: May show errors but doesn't affect other tools
-- **Empty results**: Normal when no data of that type exists in Telescope
-
-
-## Quick Start
-
-### 1. **Install and Configure**
-```bash
-composer require lucianotonet/laravel-telescope-mcp
-php artisan vendor:publish --provider="LucianoTonet\TelescopeMcp\TelescopeMcpServiceProvider"
-```
-
-### 2. **Connect MCP Client**
-Add to your Cursor MCP settings:
-```json
-{
-  "mcpServers": {
-    "Laravel Telescope MCP": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://127.0.0.1:8000/telescope-mcp", "--allow-http"],
-      "env": { "NODE_TLS_REJECT_UNAUTHORIZED": "0" }
-    }
-  }
-}
-```
-
-### 3. **Start Using MCP Tools**
-```bash
-# Check recent requests
-@laravel-telescope-mcp requests --limit 5
-
-# Find errors
-@laravel-telescope-mcp exceptions --limit 3
-
-# Monitor database performance
-@laravel-telescope-mcp queries --slow true
-```
-
-## Usage Examples
-
-### Direct MCP Tool Usage (Recommended)
-
-Once connected, you can use the MCP tools directly in your AI assistant:
+After installation, run:
 
 ```bash
-# List recent HTTP requests
-@laravel-telescope-mcp requests --limit 5
-
-# Get details of a specific exception
-@laravel-telescope-mcp exceptions --id 123456
-
-# Find slow database queries
-@laravel-telescope-mcp queries --slow true --limit 10
-
-# Check recent logs
-@laravel-telescope-mcp logs --level error --limit 5
+php artisan boost:install
 ```
 
-### Natural Language Queries
-
-* *"Show me the last 5 error logs from the application"*
-* *"Identify SQL queries taking longer than 100ms"*
-* *"Display all failed jobs from the last hour"*
-* *"Summarize HTTP requests with 5xx status codes"*
-
-The AI will automatically use the appropriate MCP tools to fetch and analyze the data.
-
-## Available Tools
-
-All 19 MCP tools are fully operational and provide structured responses with both human-readable text and JSON data.
-
-| Tool | Status | Description | Key Parameters |
-| ---- | ------ | ----------- | -------------- |
-| **Requests** | ✅ | Records incoming HTTP requests | `id`, `limit`, `method`, `status`, `path` |
-| **Exceptions** | ✅ | Tracks application errors with stack traces | `id`, `limit` |
-| **Queries** | ✅ | Monitors database queries with performance metrics | `id`, `limit`, `slow` (boolean) |
-| **Logs** | ✅ | Records application logs with filtering | `id`, `limit`, `level`, `message` |
-| **HTTP Client** | ✅ | Monitors outgoing HTTP requests | `id`, `limit`, `method`, `status`, `url` |
-| **Mail** | ✅ | Monitors email operations | `id`, `limit`, `to`, `subject` |
-| **Notifications** | ✅ | Records notification dispatches | `id`, `limit`, `channel`, `status` |
-| **Jobs** | ✅ | Tracks queued job executions | `id`, `limit`, `status`, `queue` |
-| **Events** | ✅ | Monitors event dispatches | `id`, `limit`, `name` |
-| **Models** | ✅ | Tracks Eloquent model operations | `id`, `limit`, `action`, `model` |
-| **Cache** | ✅ | Monitors cache operations | `id`, `limit`, `operation`, `key` |
-| **Redis** | ✅ | Tracks Redis operations | `id`, `limit`, `command` |
-| **Schedule** | ✅ | Monitors scheduled task executions | `id`, `limit` |
-| **Views** | ✅ | Records view renders | `id`, `limit` |
-| **Dumps** | ✅ | Records var_dump and dd() calls | `id`, `limit`, `file`, `line` |
-| **Commands** | ✅ | Tracks Artisan command executions | `id`, `limit`, `command`, `status` |
-| **Gates** | ✅ | Records authorization checks | `id`, `limit`, `ability`, `result` |
-| **Batches** | ✅ | Lists and analyzes batch operations | `id`, `limit`, `status`, `name` |
-| **Prune** | ⚠️ | Removes old Telescope entries | `hours` |
-
-**Legend**: ✅ Fully Operational | ⚠️ Minor Issues
-
-## Current Status & Features
-
-### ✅ **MCP Integration Status**
-- **19 MCP tools operational**: All major Telescope features are now accessible via MCP
-- **Native Cursor integration**: Tools work directly within Cursor without external commands
-- **Structured responses**: Each tool returns both human-readable text and JSON data
-- **Real-time data access**: Direct access to Telescope telemetry without HTTP requests
-
-### 🚀 **Key Benefits**
-- **No more cURL needed**: Use MCP tools directly in your AI assistant
-- **Instant insights**: Get application metrics through natural language
-- **Structured data**: Both readable summaries and programmatic access
-- **Full Telescope coverage**: Access to all major monitoring features
-
-### 📊 **Response Format**
-Each MCP tool provides:
-- **Human-readable output**: Formatted tables and summaries
-- **JSON data**: Structured data for programmatic processing
-- **MCP compliance**: Standard MCP response format
-
-### 🔧 **Tool Capabilities**
-- **List operations**: Get overviews with customizable limits
-- **Detail views**: Drill down into specific entries by ID
-- **Filtering**: Apply filters like status, level, time ranges
-- **Performance metrics**: Track slow queries, failed jobs, errors
+The Telescope debugging tools will be automatically discovered and available to your AI assistant through the Boost MCP server.
 
 ## Configuration
 
-* **Authentication**: Protect the MCP endpoint using middleware (e.g., `auth:sanctum`, `auth.basic`).
-* **Endpoint Path**: Customize `TELESCOPE_MCP_PATH` or modify in `config/telescope-mcp.php`.
-* **Logging**: Enable or disable internal MCP logging.
-* **Timeouts & Limits**: Adjust request timeouts and payload limits as needed.
+### Environment Variables
 
-## Advanced
+```env
+# Enable/disable the package
+TELESCOPE_MCP_ENABLED=true
 
-See `config/telescope-mcp.php` for:
+# Logging
+TELESCOPE_MCP_LOGGING_ENABLED=true
+TELESCOPE_MCP_LOG_CHANNEL=stack
+```
 
-* Custom middleware stacks
-* Operation-specific settings
-* Route and namespace overrides
+### Configuration File
 
-## Performance & Monitoring
+Publish and customize the configuration:
 
-### **Real-time Insights**
-- **HTTP Requests**: Monitor incoming traffic, response times, and status codes
-- **Database Queries**: Track slow queries and optimize performance
-- **Application Errors**: Get detailed stack traces and error context
-- **Job Processing**: Monitor queue performance and failures
-- **Cache Operations**: Track cache hit/miss ratios and performance
+```bash
+php artisan vendor:publish --tag=telescope-mcp-config
+```
 
-### **Data Retention**
-- **Configurable limits**: Set appropriate limits for each tool based on your needs
-- **Efficient queries**: Tools use optimized Telescope queries for fast responses
-- **Memory management**: Responses are formatted efficiently for MCP clients
+## Available Tools
+
+The package provides 20 specialized debugging tools:
+
+### Core Debugging
+- `telescope_exceptions` - Application exceptions with stack traces
+- `telescope_queries` - Database queries with timing and bindings
+- `telescope_requests` - HTTP requests with headers and payloads
+- `telescope_logs` - Application logs with context
+
+### Queue & Jobs
+- `telescope_jobs` - Queue job execution and failures
+- `telescope_batches` - Batch job processing
+
+### Cache & Data
+- `telescope_cache` - Cache hits, misses, and writes
+- `telescope_redis` - Redis operations
+- `telescope_models` - Eloquent model operations
+
+### Communication
+- `telescope_mail` - Sent emails
+- `telescope_notifications` - Dispatched notifications
+
+### System
+- `telescope_commands` - Artisan command execution
+- `telescope_schedule` - Scheduled task execution
+- `telescope_events` - Event dispatching
+- `telescope_gates` - Authorization gate checks
+- `telescope_views` - View rendering
+- `telescope_dumps` - Debug dumps (dump(), dd())
+- `telescope_http_client` - Outgoing HTTP requests
+
+### Maintenance
+- `telescope_prune` - Clean up old entries
+
+## Usage Examples
+
+### Debugging Slow Queries
+
+Ask your AI assistant:
+
+> "Find slow queries in my application"
+
+The AI will use `telescope_queries` with `slow: true` to identify problematic queries.
+
+### Investigating Exceptions
+
+> "What exceptions occurred in the last hour?"
+
+The AI will use `telescope_exceptions` to retrieve and analyze recent errors.
+
+### Analyzing Request Flow
+
+> "Show me the details of the last failed request"
+
+The AI will use `telescope_requests` filtered by status code to find and analyze the failure.
+
+## Testing
+
+```bash
+composer test
+```
+
+## Changelog
+
+Please see [CHANGELOG](CHANGELOG.md) for recent changes.
 
 ## Contributing
 
-Contributions are welcome. Please submit issues or pull requests following our [CONTRIBUTING.md](/CONTRIBUTING.md) guidelines.
+Contributions are welcome! Please see [CONTRIBUTING](CONTRIBUTING.md) for details.
+
+## Security
+
+If you discover a security vulnerability, please email tonetlds@gmail.com instead of using the issue tracker.
+
+## Credits
+
+- [Luciano Tonet](https://github.com/lucianotonet)
+- [All Contributors](../../contributors)
 
 ## License
 
-Licensed under MIT. See [LICENSE](LICENSE) for details.
+The MIT License (MIT). Please see [License File](LICENSE.md) for more information.
