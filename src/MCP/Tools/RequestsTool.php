@@ -7,15 +7,18 @@ use LucianoTonet\TelescopeMcp\Support\Logger;
 use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
+use LucianoTonet\TelescopeMcp\MCP\Tools\Traits\BatchQuerySupport;
 
 /**
  * Tool for interacting with HTTP requests recorded by Telescope
  */
 class RequestsTool extends AbstractTool
 {
+    use BatchQuerySupport;
+
     /**
      * Returns the tool's short name
-     * 
+     *
      * @return string
      */
     public function getShortName(): string
@@ -25,7 +28,7 @@ class RequestsTool extends AbstractTool
 
     /**
      * Returns the tool's schema
-     * 
+     *
      * @return array
      */
     public function getSchema(): array
@@ -56,6 +59,11 @@ class RequestsTool extends AbstractTool
                     'path' => [
                         'type' => 'string',
                         'description' => 'Filter by request path'
+                    ],
+                    'include_related' => [
+                        'type' => 'boolean',
+                        'description' => 'Include summary of related entries (queries, logs, cache, etc.) when viewing details',
+                        'default' => true
                     ]
                 ],
                 'required' => []
@@ -73,6 +81,10 @@ class RequestsTool extends AbstractTool
                 [
                     'description' => 'List failed requests',
                     'params' => ['status' => 500]
+                ],
+                [
+                    'description' => 'Get request details with related entries',
+                    'params' => ['id' => '12345', 'include_related' => true]
                 ]
             ]
         ];
@@ -80,7 +92,7 @@ class RequestsTool extends AbstractTool
 
     /**
      * Executes the tool with the given parameters
-     * 
+     *
      * @param array $params Tool parameters
      * @return array Response in MCP format
      */
@@ -91,7 +103,8 @@ class RequestsTool extends AbstractTool
         try {
             // Check if details of a specific request were requested
             if ($this->hasId($params)) {
-                return $this->getRequestDetails($params['id']);
+                $includeRelated = $params['include_related'] ?? true;
+                return $this->getRequestDetails($params['id'], $includeRelated);
             }
 
             return $this->listRequests($params);
@@ -107,7 +120,7 @@ class RequestsTool extends AbstractTool
 
     /**
      * Lists HTTP requests recorded by Telescope
-     * 
+     *
      * @param array $params Query parameters
      * @return array Response in MCP format
      */
@@ -142,7 +155,7 @@ class RequestsTool extends AbstractTool
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            
+
             // Get timestamp from content
             $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
 
@@ -164,7 +177,7 @@ class RequestsTool extends AbstractTool
 
         // Tabular formatting for better readability
         $table = "HTTP Requests:\n\n";
-        $table .= sprintf("%-5s %-7s %-50s %-7s %-10s %-20s\n", 
+        $table .= sprintf("%-5s %-7s %-50s %-7s %-10s %-20s\n",
             "ID", "Method", "URI", "Status", "Time (ms)", "Created At");
         $table .= str_repeat("-", 120) . "\n";
 
@@ -200,17 +213,18 @@ class RequestsTool extends AbstractTool
             'total' => count($requests),
             'requests' => $requests
         ], JSON_PRETTY_PRINT);
-        
+
         return $this->formatResponse($combinedText);
     }
 
     /**
      * Gets details of a specific HTTP request
-     * 
+     *
      * @param string $id The request ID
+     * @param bool $includeRelated Whether to include related entries summary
      * @return array Response in MCP format
      */
-    protected function getRequestDetails(string $id): array
+    protected function getRequestDetails(string $id, bool $includeRelated = true): array
     {
         Logger::info($this->getName() . ' getting details', ['id' => $id]);
 
@@ -233,7 +247,48 @@ class RequestsTool extends AbstractTool
         $output .= "URI: " . ($content['uri'] ?? 'Unknown') . "\n";
         $output .= "Status: " . ($content['response_status'] ?? 'Unknown') . "\n";
         $output .= "Duration: " . number_format(($content['duration'] ?? 0), 2) . " ms\n";
-        $output .= "Created At: {$createdAt}\n\n";
+        $output .= "Created At: {$createdAt}\n";
+
+        // Add related entries summary if batch_id exists
+        $relatedSummary = [];
+        if ($includeRelated && isset($entry->batchId) && $entry->batchId) {
+            $summary = $this->getBatchSummary($entry->batchId);
+
+            $typeLabels = [
+                'query' => 'Queries',
+                'log' => 'Logs',
+                'cache' => 'Cache Operations',
+                'model' => 'Model Events',
+                'view' => 'Views',
+                'exception' => 'Exceptions',
+                'event' => 'Events',
+                'job' => 'Jobs',
+                'mail' => 'Mails',
+                'notification' => 'Notifications',
+                'redis' => 'Redis Operations',
+            ];
+
+            $output .= "\n--- Related Entries ---\n";
+
+            $hasRelated = false;
+            foreach ($summary as $type => $count) {
+                if ($type !== 'request') { // Skip the request itself
+                    $label = $typeLabels[$type] ?? ucfirst($type);
+                    $output .= "- {$label}: {$count}\n";
+                    $relatedSummary[$type] = $count;
+                    $hasRelated = true;
+                }
+            }
+
+            if ($hasRelated) {
+                $output .= "\nTip: Use 'queries --request_id={$id}' to see queries for this request.\n";
+                $output .= "     Use 'logs --request_id={$id}' to see logs for this request.\n";
+            } else {
+                $output .= "(No related entries found)\n";
+            }
+        }
+
+        $output .= "\n";
 
         // Request headers
         if (!empty($content['headers'])) {
@@ -261,15 +316,16 @@ class RequestsTool extends AbstractTool
         // Response content (if available and not too large)
         if (!empty($content['response'])) {
             $response = $this->safeString($content['response']);
-            
+
             if (strlen($response) > 1000) {
                 $response = substr($response, 0, 1000) . "\n... (response truncated)";
             }
             $output .= "Response Content:\n" . $response . "\n";
         }
 
-        $combinedText = $output . "\n\n--- JSON Data ---\n" . json_encode([
+        $jsonData = [
             'id' => $entry->id,
+            'batch_id' => $entry->batchId ?? null,
             'method' => $content['method'] ?? 'Unknown',
             'uri' => $content['uri'] ?? 'Unknown',
             'status' => $content['response_status'] ?? 'Unknown',
@@ -279,8 +335,14 @@ class RequestsTool extends AbstractTool
             'payload' => $content['payload'] ?? [],
             'response_headers' => $content['response_headers'] ?? [],
             'response' => $content['response'] ?? null
-        ], JSON_PRETTY_PRINT);
-        
+        ];
+
+        if (!empty($relatedSummary)) {
+            $jsonData['related_entries'] = $relatedSummary;
+        }
+
+        $combinedText = $output . "\n\n--- JSON Data ---\n" . json_encode($jsonData, JSON_PRETTY_PRINT);
+
         return $this->formatResponse($combinedText);
     }
-} 
+}
