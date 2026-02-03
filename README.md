@@ -12,6 +12,18 @@ Telescope MCP exposes all Laravel Telescope telemetry data via the Model Context
 
 **Status**: ✅ **19 MCP tools fully operational and integrated**
 
+## Laravel Boost users
+
+Using [Laravel Boost](https://laravel.com/docs/boost)? **Prefer the dedicated package:**
+
+**[lucianotonet/laravel-boost-telescope](https://packagist.org/packages/lucianotonet/laravel-boost-telescope)** — Telescope MCP built for the Boost MCP stack. It plugs straight into your existing Boost setup, so you get one unified MCP server instead of running this package alongside Boost.
+
+```bash
+composer require lucianotonet/laravel-boost-telescope --dev
+```
+
+This package detects Laravel Boost and suggests the switch during `php artisan package:discover` (which runs automatically during `composer install` or `composer update`). You can still use this package with Boost if you prefer, but **lucianotonet/laravel-boost-telescope** is the recommended choice for Boost projects.
+
 ## Installation
 
 Make sure you have Laravel Telescope properly installed and configured in your application before proceeding
@@ -34,9 +46,9 @@ Make sure you have Laravel Telescope properly installed and configured in your a
    ```
    You can now verify the installation by accessing http://localhost:8000/telescope-mcp/manifest.json in your browser
 
-## Connecting an AI Client
+## Connecting an AI Client (Cursor, Windsurf, Claude, etc.)
 
-For Cursor (example):
+To connect your AI assistant, you'll generally need to add a new MCP server with the following remote configuration via `mcp-remote`:
 
 1. Open Cursor command palette (Cmd/Ctrl+Shift+P).
 2. Run **View: Open MCP Settings**.
@@ -125,8 +137,8 @@ composer require lucianotonet/laravel-telescope-mcp
 php artisan vendor:publish --provider="LucianoTonet\TelescopeMcp\TelescopeMcpServiceProvider"
 ```
 
-### 2. **Connect MCP Client**
-Add to your Cursor MCP settings:
+### 2. **Connect AI Assistant**
+Add to your assistant's MCP settings (e.g., Cursor, Windsurf):
 ```json
 {
   "mcpServers": {

@@ -11,7 +11,6 @@ use LucianoTonet\TelescopeMcp\Support\Logger;
 class McpController extends Controller
 {
     protected $server;
-    
     public function __construct(TelescopeMcpServer $server)
     {
         $this->server = $server;
@@ -430,4 +429,4 @@ class McpController extends Controller
             );
         }
     }
-} 
+}
