@@ -16,7 +16,7 @@ Telescope MCP exposes all Laravel Telescope telemetry data via the Model Context
 
 Using [Laravel Boost](https://laravel.com/docs/boost)? **Prefer the dedicated package:**
 
-**[lucianotonet/laravel-boost-telescope](https://packagist.org/packages/lucianotonet/laravel-boost-telescope)** — Telescope MCP built for the Boost MCP stack. It plugs straight into your existing Boost setup, so you get one unified MCP server instead of running this package alongside Boost.
+**[lucianotonet/laravel-boost-telescope](https://github.com/lucianotonet/laravel-boost-telescope)** — Telescope MCP built for the Boost MCP stack. It plugs straight into your existing Boost setup, so you get one unified MCP server instead of running this package alongside Boost.
 
 ```bash
 composer require lucianotonet/laravel-boost-telescope --dev
