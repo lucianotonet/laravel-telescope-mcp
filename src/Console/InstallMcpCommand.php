@@ -33,26 +33,49 @@ class InstallMcpCommand extends Command
             'name' => 'Cursor',
             'config_path' => '~/.cursor/mcp.json',
             'auto_detected' => true,
+            'type' => 'json',
         ],
         'claude-code' => [
             'name' => 'Claude Code',
             'config_path' => '~/.claude/mcp.json',
             'auto_detected' => true,
+            'type' => 'json',
         ],
         'windsurf' => [
             'name' => 'Windsurf',
             'config_path' => '~/.windsurf/mcp.json',
             'auto_detected' => true,
+            'type' => 'json',
+        ],
+        'gemini' => [
+            'name' => 'Gemini App',
+            'config_path' => '~/.gemini/settings.json',
+            'auto_detected' => true,
+            'type' => 'json',
+        ],
+        'codex' => [
+            'name' => 'Codex',
+            'config_path' => '~/.codex/config.toml',
+            'auto_detected' => true,
+            'type' => 'toml',
+        ],
+        'opencode' => [
+            'name' => 'OpenCode',
+            'config_path' => '~/.config/opencode/opencode.json',
+            'auto_detected' => true,
+            'type' => 'json',
         ],
         'cline' => [
             'name' => 'Cline (VS Code)',
             'config_path' => '~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json',
             'auto_detected' => false,
+            'type' => 'json',
         ],
         'project' => [
             'name' => 'Project-specific (.mcp.json)',
             'config_path' => '.mcp.json',
             'auto_detected' => false,
+            'type' => 'json',
         ],
     ];
 
@@ -172,6 +195,7 @@ class InstallMcpCommand extends Command
     {
         $client = $this->mcpClients[$clientKey];
         $configPath = $this->expandPath($client['config_path']);
+        $type = $client['type'] ?? 'json';
 
         // Ensure directory exists
         $directory = dirname($configPath);
@@ -179,14 +203,18 @@ class InstallMcpCommand extends Command
             File::makeDirectory($directory, 0755, true);
         }
 
-        // Load existing config or create new
-        $config = $this->loadMcpConfig($configPath);
-
-        // Add/Update Telescope MCP server
-        $config['mcpServers']['laravel-telescope'] = $this->getMcpServerConfig();
-
-        // Write config
         try {
+            if ($type === 'toml') {
+                return $this->updateTomlConfig($configPath, $client['name']);
+            }
+
+            // Load existing config or create new
+            $config = $this->loadMcpConfig($configPath);
+
+            // Add/Update Telescope MCP server
+            $config['mcpServers']['laravel-telescope'] = $this->getMcpServerConfig();
+
+            // Write config
             File::put(
                 $configPath,
                 json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
@@ -201,6 +229,40 @@ class InstallMcpCommand extends Command
         } catch (\Exception $e) {
             $this->components->error("Failed to configure {$client['name']}: {$e->getMessage()}");
             return false;
+        }
+    }
+
+    /**
+     * Update TOML configuration file
+     */
+    protected function updateTomlConfig(string $path, string $clientName): bool
+    {
+        $serverConfig = $this->getMcpServerConfig();
+        $tomlConfig = $this->getMcpServerConfigToml($serverConfig);
+
+        try {
+            if (!File::exists($path)) {
+                File::put($path, $tomlConfig);
+            } else {
+                $content = File::get($path);
+                
+                // Check if already configured to avoid duplication
+                if (str_contains($content, '[mcpServers.laravel-telescope]')) {
+                   $this->components->warn("Laravel Telescope already configured in {$path}");
+                   return true;
+                }
+
+                File::append($path, "\n" . $tomlConfig);
+            }
+
+            $this->components->task(
+                "Configured {$clientName}",
+                fn() => true
+            );
+
+            return true;
+        } catch (\Exception $e) {
+            throw $e;
         }
     }
 
@@ -248,6 +310,31 @@ class InstallMcpCommand extends Command
                 'APP_ENV' => config('app.env', 'local'),
             ],
         ];
+    }
+
+    /**
+     * Get MCP server configuration in TOML format
+     */
+    protected function getMcpServerConfigToml(array $config): string
+    {
+        $toml = "[mcpServers.laravel-telescope]\n";
+        $toml .= "command = \"{$config['command']}\"\n";
+        
+        $args = array_map(fn($arg) => "\"{$arg}\"", $config['args']);
+        $toml .= "args = [" . implode(', ', $args) . "]\n";
+        
+        // Escape backslashes in Windows paths for TOML
+        $cwd = str_replace('\\', '\\\\', $config['cwd']);
+        $toml .= "cwd = \"{$cwd}\"\n";
+        
+        if (!empty($config['env'])) {
+            $toml .= "\n[mcpServers.laravel-telescope.env]\n";
+            foreach ($config['env'] as $key => $value) {
+                $toml .= "{$key} = \"{$value}\"\n";
+            }
+        }
+        
+        return $toml;
     }
 
     /**
@@ -308,6 +395,12 @@ class InstallMcpCommand extends Command
                     $this->line('  1. Open Windsurf settings');
                     $this->line('  2. Navigate to MCP Servers');
                     $this->line('  3. Enable "laravel-telescope"');
+                    break;
+                
+                case 'gemini':
+                case 'opencode':
+                case 'codex':
+                    $this->line('  • Server should auto-enable on next restart');
                     break;
 
                 case 'project':
