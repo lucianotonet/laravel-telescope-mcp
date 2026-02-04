@@ -35,29 +35,72 @@ composer require lucianotonet/laravel-boost-telescope --dev
 
 This package detects Laravel Boost and suggests the switch during `php artisan package:discover` (which runs automatically during `composer install` or `composer update`). You can still use this package with Boost if you prefer, but **lucianotonet/laravel-boost-telescope** is the recommended choice for Boost projects.
 
-## Installation
-
-Make sure you have Laravel Telescope properly installed and configured in your application before proceeding
-
-1. Add the package via Composer:
-
-    ```bash
-    composer require lucianotonet/laravel-telescope-mcp
-    ```
-2. Publish the configuration (optional):
-
+## Quick Start
+ 
+1. **Install the package:**
    ```bash
-   php artisan vendor:publish --provider="LucianoTonet\TelescopeMcp\TelescopeMcpServiceProvider"
+   composer require lucianotonet/laravel-telescope-mcp
    ```
-3. Update your `.env` (optional):
-
-   ```dotenv
-   TELESCOPE_MCP_ENABLED=true
-   TELESCOPE_MCP_PATH=telescope-mcp
+ 
+2. **Auto-configure your MCP client:**
+   ```bash
+   php artisan telescope-mcp:install
    ```
-   You can now verify the installation by accessing http://localhost:8000/telescope-mcp/manifest.json in your browser
-
-## Connecting an AI Client (Cursor, Windsurf, Claude, etc.)
+   > 💡 Automatically detects and configures: **Cursor**, **Claude Code**, **Windsurf**, **Cline**, **Gemini App**, **Codex**, and **OpenCode**.
+ 
+3. **Restart your IDE/editor** and start using tools!
+ 
+---
+ 
+## Detailed Installation
+ 
+### 1. Require Package
+```bash
+composer require lucianotonet/laravel-telescope-mcp
+```
+ 
+### 2. Configure MCP Client
+You can use the automatic installer or configure manually.
+ 
+**Option A: Automatic Installation (Recommended)**
+```bash
+php artisan telescope-mcp:install
+```
+This command will:
+- Detect installed MCP clients
+- Generate the correct configuration file (`mcp.json`, `settings.json`, etc.)
+- Set up the server in `stdio` mode
+ 
+**Option B: Manual Configuration**
+Add the following to your MCP client's configuration file:
+ 
+```json
+{
+  "mcpServers": {
+    "laravel-telescope": {
+      "command": "php",
+      "args": ["artisan", "telescope-mcp:server"],
+      "cwd": "/path/to/your/project",
+      "env": {
+        "APP_ENV": "local"
+      }
+    }
+  }
+}
+```
+ 
+### 3. Verify Installation
+Run the server manually to ensure it's working:
+```bash
+php artisan telescope-mcp:server
+```
+It should run silently (logging to stderr) and wait for JSON-RPC input.
+ 
+---
+ 
+## Connecting via Remote (Advanced)
+ 
+If you prefer to connect via HTTP (e.g., using `mcp-remote`) instead of `stdio`, follow these steps:
 
 To connect your AI assistant, you'll generally need to add a new MCP server with the following remote configuration via `mcp-remote`:
 
@@ -149,18 +192,7 @@ php artisan vendor:publish --provider="LucianoTonet\TelescopeMcp\TelescopeMcpSer
 ```
 
 ### 2. **Connect AI Assistant**
-Add to your assistant's MCP settings (e.g., Cursor, Windsurf):
-```json
-{
-  "mcpServers": {
-    "Laravel Telescope MCP": {
-      "command": "npx",
-      "args": ["-y", "mcp-remote", "http://127.0.0.1:8000/telescope-mcp", "--allow-http"],
-      "env": { "NODE_TLS_REJECT_UNAUTHORIZED": "0" }
-    }
-  }
-}
-```
+If you didn't use the `telescope-mcp:install` command, you can manually configure your client (see Detailed Installation above).
 
 ### 3. **Start Using MCP Tools**
 ```bash

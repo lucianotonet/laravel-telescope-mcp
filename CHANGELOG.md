@@ -11,6 +11,10 @@ All notable changes to `laravel-telescope-mcp` will be documented in this file.
 - Modern schema validation using JsonSchema builder
 - Enhanced dependency injection via handle() method
 - Backward compatibility routes (legacy routes at /telescope-mcp-legacy)
+- `telescope-mcp:install` command for automatic MCP client configuration
+- `telescope-mcp:server` command for running MCP server in stdio mode
+- Auto-detection of Cursor, Claude Code, Windsurf, Cline, Gemini, Codex, and Opencode
+- Automatic `mcp.json` (or equivalent) generation for detected clients
 
 ### Changed
 - All 19 tools migrated from AbstractTool to Laravel\Mcp\Server\Tool
