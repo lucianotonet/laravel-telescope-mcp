@@ -7,7 +7,11 @@
       "Bash(php artisan:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(php -l:*)"
+      "Bash(php -l:*)",
+      "Bash(ls:*)",
+      "Bash(while read file)",
+      "Bash(do php -l \"$file\")",
+      "Bash(done)"
     ]
   }
 }

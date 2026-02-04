@@ -5,6 +5,8 @@ namespace LucianoTonet\TelescopeMcp;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use LucianoTonet\TelescopeMcp\Console\ConnectMcpCommand;
+use LucianoTonet\TelescopeMcp\Console\InstallMcpCommand;
+use LucianoTonet\TelescopeMcp\Console\McpServerCommand;
 use LucianoTonet\TelescopeMcp\Support\Logger;
 
 class TelescopeMcpServiceProvider extends ServiceProvider
@@ -28,6 +30,8 @@ class TelescopeMcpServiceProvider extends ServiceProvider
 
             $this->commands([
                 ConnectMcpCommand::class,
+                InstallMcpCommand::class,
+                McpServerCommand::class,
             ]);
 
             $this->checkLaravelBoost();
