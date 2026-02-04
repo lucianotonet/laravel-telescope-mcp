@@ -22,8 +22,13 @@ trait BatchQuerySupport
     protected function getBatchIdForEntry(string $entryId): ?string
     {
         try {
-            $entry = $this->entriesRepository->find($entryId);
-            return $entry->batchId ?? null;
+            // Query directly from database since we need batch_id
+            $entry = DB::connection($this->getTelescopeConnection())
+                ->table('telescope_entries')
+                ->where('uuid', $entryId)
+                ->first();
+
+            return $entry->batch_id ?? null;
         } catch (\Exception $e) {
             return null;
         }

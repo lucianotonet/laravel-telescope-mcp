@@ -19,10 +19,28 @@ class PruneTool extends Tool
     protected string $title = 'Telescope Prune';
     protected string $description = 'Prunes old Telescope entries from the database.';
 
+    /**
+     * Optional callback for testing: callable(int $hours): array{output: string, exitCode: int}
+     * When set, used instead of Artisan::call().
+     *
+     * @var callable|null
+     */
+    public static $testRunner = null;
+
     public function handle(Request $request): Response
     {
         try {
             $hours = $request->integer('hours', 24);
+
+            if (static::$testRunner !== null) {
+                $result = (static::$testRunner)($hours);
+                $output = $result['output'] ?? '';
+                $exitCode = $result['exitCode'] ?? 0;
+                if ($exitCode !== 0) {
+                    throw new \Exception($result['message'] ?? 'Command failed');
+                }
+                return Response::text($output ?: "Telescope entries pruned successfully. Entries older than {$hours} hours have been deleted.");
+            }
 
             Artisan::call('telescope:prune', [
                 '--hours' => $hours,

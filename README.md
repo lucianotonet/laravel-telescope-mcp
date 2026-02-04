@@ -1,5 +1,6 @@
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/lucianotonet/laravel-telescope-mcp.svg)](https://packagist.org/packages/lucianotonet/laravel-telescope-mcp)
 [![Downloads](https://img.shields.io/packagist/dt/lucianotonet/laravel-telescope-mcp.svg)](https://packagist.org/packages/lucianotonet/laravel-telescope-mcp)
+[![Tests](https://github.com/lucianotonet/laravel-telescope-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/lucianotonet/laravel-telescope-mcp/actions/workflows/tests.yml)
 [![License](https://img.shields.io/github/license/lucianotonet/laravel-telescope-mcp)](LICENSE)
 
 # Laravel Telescope MCP
