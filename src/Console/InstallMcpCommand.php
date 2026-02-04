@@ -89,7 +89,7 @@ class InstallMcpCommand extends Command
             'name' => 'OpenCode',
             'paths' => [
                 'global' => '~/.config/opencode/opencode.json',
-                'project' => '.opencode/config.json',
+                'project' => 'opencode.json',
             ],
             'auto_detected' => true,
             'type' => 'json',
@@ -293,8 +293,18 @@ class InstallMcpCommand extends Command
             // Load existing config or create new
             $config = $this->loadMcpConfig($configPath);
 
+            $configKey = ($clientKey === 'opencode') ? 'mcp' : 'mcpServers';
+
+            if (!isset($config[$configKey])) {
+                $config[$configKey] = [];
+            }
+
+            if ($clientKey === 'opencode') {
+                $config['$schema'] = 'https://opencode.ai/config.json';
+            }
+
             // Add/Update Telescope MCP server
-            $config['mcpServers']['laravel-telescope'] = $this->getMcpServerConfig($clientKey);
+            $config[$configKey]['laravel-telescope'] = $this->getMcpServerConfig($clientKey);
 
             // Write config
             File::put(
@@ -355,23 +365,28 @@ class InstallMcpCommand extends Command
     protected function loadMcpConfig(string $path): array
     {
         if (!File::exists($path)) {
-            return ['mcpServers' => []];
+            return [];
         }
 
         try {
             $content = File::get($path);
+
+            if (empty(trim($content))) {
+                return [];
+            }
+
             $config = json_decode($content, true);
 
             if (json_last_error() !== JSON_ERROR_NONE) {
                 $this->components->warn("Existing config is invalid JSON. Creating backup...");
                 File::copy($path, $path . '.backup');
-                return ['mcpServers' => []];
+                return [];
             }
 
-            return $config;
+            return $config ?: [];
         } catch (\Exception $e) {
             $this->components->warn("Could not read existing config: {$e->getMessage()}");
-            return ['mcpServers' => []];
+            return [];
         }
     }
 
@@ -383,9 +398,24 @@ class InstallMcpCommand extends Command
         $basePath = base_path();
         $artisanPath = 'artisan';
 
-        // Antigravity does not support 'cwd' and needs absolute path for artisan
-        if ($clientKey === 'antigravity') {
+        // Antigravity and OpenCode need absolute path for artisan and specific environment config
+        if ($clientKey === 'antigravity' || $clientKey === 'opencode') {
             $artisanPath = base_path('artisan');
+        }
+
+        if ($clientKey === 'opencode') {
+            return [
+                'type' => 'local',
+                'enabled' => true,
+                'command' => [
+                    'php',
+                    $artisanPath,
+                    'telescope-mcp:server',
+                ],
+                'environment' => [
+                    'APP_ENV' => config('app.env', 'local'),
+                ],
+            ];
         }
 
         $config = [
@@ -403,8 +433,8 @@ class InstallMcpCommand extends Command
             $config['env']['MCP_MODE'] = 'stdio';
         }
 
-        // Only add cwd if client is not antigravity
-        if ($clientKey !== 'antigravity') {
+        // Only add cwd if client is not antigravity or opencode
+        if ($clientKey !== 'antigravity' && $clientKey !== 'opencode') {
             $config['cwd'] = $basePath;
         }
 
