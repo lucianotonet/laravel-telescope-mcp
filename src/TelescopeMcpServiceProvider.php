@@ -11,23 +11,31 @@ class TelescopeMcpServiceProvider extends ServiceProvider
 {
     public function boot()
     {
-        $this->registerRoutes();
+        // Register Laravel/MCP AI routes
+        $this->registerMcpRoutes();
+
+        // Keep old routes for backward compatibility (deprecated)
+        $this->registerLegacyRoutes();
 
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__.'/../config/telescope-mcp.php' => config_path('telescope-mcp.php'),
             ], 'telescope-mcp-config');
-            
+
+            $this->publishes([
+                __DIR__.'/../routes/ai.php' => base_path('routes/ai.php'),
+            ], 'telescope-mcp-ai-routes');
+
             $this->commands([
                 ConnectMcpCommand::class,
             ]);
 
             $this->checkLaravelBoost();
         }
-        
+
         // Configurar logger
         $this->configureLogging();
-        
+
         // Registrar rota de teste para gerar entradas no Telescope
         $this->registerTestRoute();
     }
@@ -49,13 +57,32 @@ class TelescopeMcpServiceProvider extends ServiceProvider
         );
     }
 
-    protected function registerRoutes()
+    /**
+     * Register Laravel/MCP routes
+     */
+    protected function registerMcpRoutes()
+    {
+        // Load AI routes from routes/ai.php
+        // This will register the MCP server using Laravel\Mcp\Facades\Mcp
+        if (file_exists(__DIR__.'/../routes/ai.php')) {
+            $this->loadRoutesFrom(__DIR__.'/../routes/ai.php');
+        }
+    }
+
+    /**
+     * Register legacy routes for backward compatibility
+     *
+     * @deprecated These routes will be removed in a future version
+     */
+    protected function registerLegacyRoutes()
     {
         Route::group([
-            'prefix' => config('telescope-mcp.path', 'telescope-mcp'),
+            'prefix' => config('telescope-mcp.path', 'telescope-mcp') . '-legacy',
             'middleware' => config('telescope-mcp.middleware', ['web'])
         ], function () {
-            $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
+            if (file_exists(__DIR__.'/../routes/api.php')) {
+                $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
+            }
         });
     }
     
