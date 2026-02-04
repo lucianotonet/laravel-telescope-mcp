@@ -72,14 +72,13 @@ jobs:
       - name: Notify Packagist
         env:
           PACKAGIST_TOKEN: ${{ secrets.PACKAGIST_API_TOKEN }}
-          PACKAGIST_USER: ${{ secrets.PACKAGIST_USER_NAME }}
         run: |
           PACKAGE=$(jq -r '.name' composer.json)
           echo "📦 Notifying Packagist for ${PACKAGE}..."
 
           HTTP_CODE=$(curl -sw "%{http_code}" -o /dev/null -X POST \
             -H "Content-Type: application/json" \
-            "https://packagist.org/api/update-package?username=${PACKAGIST_USER}&apiToken=${PACKAGIST_TOKEN}" \
+            "https://packagist.org/api/update-package?username=lucianotonet&apiToken=${PACKAGIST_TOKEN}" \
             -d "{\"repository\":{\"url\":\"https://github.com/${GITHUB_REPOSITORY}\"}}")
 
           if [ "$HTTP_CODE" = "202" ] || [ "$HTTP_CODE" = "200" ]; then
