@@ -36,7 +36,7 @@ Telescope MCP exposes all Laravel Telescope telemetry data via the Model Context
  
 1. **Install the package:**
    ```bash
-   composer require lucianotonet/laravel-telescope-mcp
+   composer require lucianotonet/laravel-telescope-mcp --dev
    ```
  
 2. **Auto-configure your MCP client:**
