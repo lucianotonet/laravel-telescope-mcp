@@ -47,7 +47,7 @@ This package detects Laravel Boost and suggests the switch during `php artisan p
    ```bash
    php artisan telescope-mcp:install
    ```
-   > 💡 Automatically detects and configures: **Cursor**, **Claude Code**, **Windsurf**, **Cline**, **Gemini App**, **Codex**, and **OpenCode**.
+   > 💡 Automatically detects and configures: **Cursor**, **Claude Code**, **Windsurf**, **Cline**, **Gemini App**, **Antigravity**, **Codex**, and **OpenCode**.
  
 3. **Restart your IDE/editor** and start using tools!
  
@@ -89,6 +89,9 @@ Add the following to your MCP client's configuration file:
   }
 }
 ```
+ 
+> [!IMPORTANT]
+> **Antigravity users:** Antigravity does not support the `cwd` property. You must use the absolute path to `artisan` in the `args` array and it is recommended to add `"MCP_MODE": "stdio"` to the `env` object.
  
 ### 3. Verify Installation
 Run the server manually to ensure it's working:

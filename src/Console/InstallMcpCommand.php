@@ -67,6 +67,15 @@ class InstallMcpCommand extends Command
             'auto_detected' => true,
             'type' => 'json',
         ],
+        'antigravity' => [
+            'name' => 'Antigravity',
+            'paths' => [
+                'global' => '~/.gemini/antigravity/mcp_config.json',
+                'project' => null, // Antigravity only supports global MCP configuration
+            ],
+            'auto_detected' => true,
+            'type' => 'json',
+        ],
         'codex' => [
             'name' => 'Codex',
             'paths' => [
@@ -248,6 +257,11 @@ class InstallMcpCommand extends Command
         $client = $this->mcpClients[$clientKey];
         $isGlobal = $this->option('global');
 
+        // Antigravity only supports global configuration
+        if ($clientKey === 'antigravity') {
+            $isGlobal = true;
+        }
+
         // Determine target path
         if ($isGlobal) {
             if (empty($client['paths']['global'])) {
@@ -273,14 +287,14 @@ class InstallMcpCommand extends Command
 
         try {
             if ($type === 'toml') {
-                return $this->updateTomlConfig($configPath, $client['name']);
+                return $this->updateTomlConfig($configPath, $client['name'], $clientKey);
             }
 
             // Load existing config or create new
             $config = $this->loadMcpConfig($configPath);
 
             // Add/Update Telescope MCP server
-            $config['mcpServers']['laravel-telescope'] = $this->getMcpServerConfig();
+            $config['mcpServers']['laravel-telescope'] = $this->getMcpServerConfig($clientKey);
 
             // Write config
             File::put(
@@ -304,9 +318,9 @@ class InstallMcpCommand extends Command
     /**
      * Update TOML configuration file
      */
-    protected function updateTomlConfig(string $path, string $clientName): bool
+    protected function updateTomlConfig(string $path, string $clientName, string $clientKey = ''): bool
     {
-        $serverConfig = $this->getMcpServerConfig();
+        $serverConfig = $this->getMcpServerConfig($clientKey);
         $tomlConfig = $this->getMcpServerConfigToml($serverConfig);
 
         try {
@@ -364,21 +378,37 @@ class InstallMcpCommand extends Command
     /**
      * Get MCP server configuration array
      */
-    protected function getMcpServerConfig(): array
+    protected function getMcpServerConfig(string $clientKey = ''): array
     {
         $basePath = base_path();
+        $artisanPath = 'artisan';
 
-        return [
+        // Antigravity does not support 'cwd' and needs absolute path for artisan
+        if ($clientKey === 'antigravity') {
+            $artisanPath = base_path('artisan');
+        }
+
+        $config = [
             'command' => 'php',
             'args' => [
-                'artisan',
+                $artisanPath,
                 'telescope-mcp:server',
             ],
-            'cwd' => $basePath,
             'env' => [
                 'APP_ENV' => config('app.env', 'local'),
             ],
         ];
+
+        if ($clientKey === 'antigravity') {
+            $config['env']['MCP_MODE'] = 'stdio';
+        }
+
+        // Only add cwd if client is not antigravity
+        if ($clientKey !== 'antigravity') {
+            $config['cwd'] = $basePath;
+        }
+
+        return $config;
     }
 
     /**
@@ -393,8 +423,10 @@ class InstallMcpCommand extends Command
         $toml .= "args = [" . implode(', ', $args) . "]\n";
 
         // Escape backslashes in Windows paths for TOML
-        $cwd = str_replace('\\', '\\\\', $config['cwd']);
-        $toml .= "cwd = \"{$cwd}\"\n";
+        if (isset($config['cwd'])) {
+            $cwd = str_replace('\\', '\\\\', $config['cwd']);
+            $toml .= "cwd = \"{$cwd}\"\n";
+        }
 
         if (!empty($config['env'])) {
             $toml .= "\n[mcpServers.laravel-telescope.env]\n";
@@ -472,6 +504,11 @@ class InstallMcpCommand extends Command
                 case 'opencode':
                 case 'codex':
                     $this->line('  • Server should auto-enable on next restart');
+                    break;
+
+                case 'antigravity':
+                    $this->line('  • Server configured globally (Antigravity uses global MCP config only)');
+                    $this->line('  • Restart Antigravity to load the new configuration');
                     break;
 
                 case 'project':
