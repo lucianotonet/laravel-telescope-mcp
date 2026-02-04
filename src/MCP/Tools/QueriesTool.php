@@ -1,156 +1,80 @@
 <?php
 
-namespace LucianoTonet\TelescopeMcp\MCP\Tools;
+namespace LucianoTonet\TelescopeMcp\Mcp\Tools;
 
+use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
+use Laravel\Mcp\Server\Contracts\IsReadOnly;
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
-use LucianoTonet\TelescopeMcp\Support\Logger;
-use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use LucianoTonet\TelescopeMcp\MCP\Tools\Traits\BatchQuerySupport;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
-class QueriesTool extends AbstractTool
+/**
+ * Tool for interacting with database queries recorded by Telescope
+ */
+class QueriesTool extends Tool implements IsReadOnly
 {
     use BatchQuerySupport;
 
-    /**
-     * Retorna o nome curto da ferramenta
-     */
-    public function getShortName(): string
-    {
-        return 'queries';
-    }
+    protected string $name = 'queries';
+    protected string $title = 'Telescope Database Queries';
+    protected string $description = 'Lists and analyzes database queries recorded by Telescope.';
 
-    /**
-     * Retorna o esquema da ferramenta
-     */
-    public function getSchema(): array
-    {
-        return [
-            'name' => $this->getName(),
-            'description' => 'Lista e analisa queries de banco de dados registradas pelo Telescope',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'id' => [
-                        'type' => 'string',
-                        'description' => 'ID da query específica para ver detalhes'
-                    ],
-                    'request_id' => [
-                        'type' => 'string',
-                        'description' => 'Filter queries by the request ID they belong to (uses batch_id grouping)'
-                    ],
-                    'limit' => [
-                        'type' => 'integer',
-                        'description' => 'Número máximo de queries a retornar',
-                        'default' => 50
-                    ],
-                    'slow' => [
-                        'type' => 'boolean',
-                        'description' => 'Filtrar apenas queries lentas (>100ms)',
-                        'default' => false
-                    ]
-                ],
-                'required' => []
-            ],
-            'outputSchema' => [
-                'type' => 'object',
-                'properties' => [
-                    'content' => [
-                        'type' => 'array',
-                        'items' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'type' => [
-                                    'type' => 'string',
-                                    'enum' => ['text', 'json', 'markdown', 'html']
-                                ],
-                                'text' => ['type' => 'string']
-                            ],
-                            'required' => ['type', 'text']
-                        ]
-                    ]
-                ],
-                'required' => ['content']
-            ],
-            'examples' => [
-                [
-                    'description' => 'List all queries',
-                    'params' => ['limit' => 10]
-                ],
-                [
-                    'description' => 'List queries for a specific request',
-                    'params' => ['request_id' => 'abc123']
-                ],
-                [
-                    'description' => 'List slow queries for a request',
-                    'params' => ['request_id' => 'abc123', 'slow' => true]
-                ]
-            ]
-        ];
-    }
-
-    /**
-     * Executa a ferramenta com os parâmetros fornecidos
-     */
-    public function execute(array $params): array
+    public function handle(Request $request, EntriesRepository $repository): Response
     {
         try {
-            Logger::info($this->getName() . ' execute method called', ['params' => $params]);
-
-            // Verificar se foi solicitado detalhes de uma query específica
-            if ($this->hasId($params)) {
-                return $this->getQueryDetails($params['id']);
+            // Check for specific query details
+            if ($id = $request->get('id')) {
+                return $this->getQueryDetails($id, $repository);
             }
 
             // Check if filtering by request_id
-            if ($this->hasRequestId($params)) {
-                return $this->listQueriesForRequest($params['request_id'], $params);
+            if ($requestId = $request->get('request_id')) {
+                return $this->listQueriesForRequest($requestId, $request, $repository);
             }
 
-            return $this->listQueries($params);
+            return $this->listQueries($request, $repository);
         } catch (\Exception $e) {
-            Logger::error($this->getName() . ' execution error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return $this->formatError('Error: ' . $e->getMessage());
+            return Response::error('Error: ' . $e->getMessage());
         }
     }
 
-    /**
-     * Lista as queries registradas pelo Telescope
-     */
-    protected function listQueries(array $params): array
+    public function schema(JsonSchema $schema): array
     {
-        // Definir limite para a consulta
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
+        return [
+            'id' => $schema->string()->description('ID of specific query to view details'),
+            'request_id' => $schema->string()->description('Filter queries by the request ID they belong to (uses batch_id grouping)'),
+            'limit' => $schema->integer()->default(50)->description('Maximum number of queries to return'),
+            'slow' => $schema->boolean()->default(false)->description('Filter only slow queries (>100ms)'),
+        ];
+    }
 
-        // Configurar opções
+    protected function listQueries(Request $request, EntriesRepository $repository): Response
+    {
+        $limit = min($request->integer('limit', 50), 100);
+        $slow = $request->boolean('slow', false);
+
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Buscar entradas usando o repositório
-        $entries = $this->entriesRepository->get(EntryType::QUERY, $options);
-
-        if (empty($entries)) {
-            return $this->formatResponse("Nenhuma query encontrada.");
-        }
+        $entries = $repository->get(EntryType::QUERY, $options);
+        if (empty($entries)) return Response::text("No queries found.");
 
         $queries = [];
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-
-            // Get timestamp from content
             $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
 
             $duration = $content['duration'] ?? 0;
-            $slow = $duration > 100; // Queries taking more than 100ms are considered slow
+            $isSlow = $duration > 100; // Queries taking more than 100ms are considered slow
 
             // Skip if we're only looking for slow queries and this one isn't slow
-            if ($params['slow'] ?? false && !$slow) {
+            if ($slow && !$isSlow) {
                 continue;
             }
 
@@ -163,15 +87,14 @@ class QueriesTool extends AbstractTool
             ];
         }
 
-        // Formatação tabular para facilitar a leitura
+        // Tabular formatting for readability
         $table = "Database Queries:\n\n";
         $table .= sprintf("%-5s %-50s %-10s %-15s %-20s\n", "ID", "SQL", "Time (ms)", "Connection", "Created At");
         $table .= str_repeat("-", 105) . "\n";
 
         foreach ($queries as $query) {
-            // Truncar SQL longa
-            $sql = $query['sql'];
-            $sql = $this->safeString($sql);
+            // Truncate long SQL
+            $sql = $this->safeString($query['sql']);
             if (strlen($sql) > 50) {
                 $sql = substr($sql, 0, 47) . "...";
             }
@@ -191,44 +114,39 @@ class QueriesTool extends AbstractTool
             'queries' => $queries
         ], JSON_PRETTY_PRINT);
 
-        return $this->formatResponse($combinedText);
+        return Response::text($combinedText);
     }
 
-    /**
-     * Lista queries para um request específico usando batch_id
-     */
-    protected function listQueriesForRequest(string $requestId, array $params): array
+    protected function listQueriesForRequest(string $requestId, Request $request, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' listing queries for request', ['request_id' => $requestId]);
-
         // Get the batch_id for this request
         $batchId = $this->getBatchIdForRequest($requestId);
 
         if (!$batchId) {
-            return $this->formatError("Request not found or has no batch ID: {$requestId}");
+            return Response::error("Request not found or has no batch ID: {$requestId}");
         }
 
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
+        $limit = min($request->integer('limit', 50), 100);
+        $slow = $request->boolean('slow', false);
 
         // Get queries for this batch
         $entries = $this->getEntriesByBatchId($batchId, 'query', $limit);
 
         if (empty($entries)) {
-            return $this->formatResponse("No queries found for request: {$requestId}");
+            return Response::text("No queries found for request: {$requestId}");
         }
 
         $queries = [];
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-
             $createdAt = isset($entry->createdAt) ? DateFormatter::format($entry->createdAt) : 'Unknown';
 
             $duration = $content['duration'] ?? $content['time'] ?? 0;
-            $slow = $duration > 100;
+            $isSlow = $duration > 100;
 
             // Skip if we're only looking for slow queries and this one isn't slow
-            if (($params['slow'] ?? false) && !$slow) {
+            if ($slow && !$isSlow) {
                 continue;
             }
 
@@ -241,7 +159,7 @@ class QueriesTool extends AbstractTool
             ];
         }
 
-        // Formatação tabular com contexto do request
+        // Tabular formatting with request context
         $table = "Queries for Request: {$requestId}\n";
         $table .= "Batch ID: {$batchId}\n";
         $table .= "Total: " . count($queries) . " queries\n\n";
@@ -249,8 +167,7 @@ class QueriesTool extends AbstractTool
         $table .= str_repeat("-", 105) . "\n";
 
         foreach ($queries as $query) {
-            $sql = $query['sql'];
-            $sql = $this->safeString($sql);
+            $sql = $this->safeString($query['sql']);
             if (strlen($sql) > 50) {
                 $sql = substr($sql, 0, 47) . "...";
             }
@@ -272,26 +189,18 @@ class QueriesTool extends AbstractTool
             'queries' => $queries
         ], JSON_PRETTY_PRINT);
 
-        return $this->formatResponse($combinedText);
+        return Response::text($combinedText);
     }
 
-    /**
-     * Obtém detalhes de uma query específica
-     */
-    protected function getQueryDetails(string $id): array
+    protected function getQueryDetails(string $id, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' getting details', ['id' => $id]);
-
-        // Buscar a entrada específica
-        $entry = $this->getEntryDetails(EntryType::QUERY, $id);
+        $entry = $repository->find($id);
 
         if (!$entry) {
-            return $this->formatError("Query não encontrada: {$id}");
+            return Response::error("Query not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
-
-        // Get timestamp from content
         $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
 
         // Detailed formatting of the query
@@ -301,10 +210,10 @@ class QueriesTool extends AbstractTool
         $output .= "Duration: " . number_format(($content['time'] ?? 0), 2) . "ms\n";
         $output .= "Created At: {$createdAt}\n\n";
 
-        // SQL completo
+        // Full SQL
         $output .= "SQL:\n" . ($content['sql'] ?? 'Unknown') . "\n\n";
 
-        // Bindings se disponíveis
+        // Bindings if available
         if (isset($content['bindings']) && !empty($content['bindings'])) {
             $output .= "Bindings:\n" . json_encode($content['bindings'], JSON_PRETTY_PRINT) . "\n";
         }
@@ -318,6 +227,29 @@ class QueriesTool extends AbstractTool
             'bindings' => $content['bindings'] ?? []
         ], JSON_PRETTY_PRINT);
 
-        return $this->formatResponse($combinedText);
+        return Response::text($combinedText);
+    }
+
+    /**
+     * Safely convert a value to string
+     */
+    protected function safeString($value): string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+        if (is_numeric($value)) {
+            return (string) $value;
+        }
+        if (is_array($value) || is_object($value)) {
+            return json_encode($value);
+        }
+        if (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        }
+        if (is_null($value)) {
+            return 'null';
+        }
+        return (string) $value;
     }
 }

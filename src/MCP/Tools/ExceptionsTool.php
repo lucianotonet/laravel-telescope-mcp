@@ -1,140 +1,66 @@
 <?php
 
-namespace LucianoTonet\TelescopeMcp\MCP\Tools;
+namespace LucianoTonet\TelescopeMcp\Mcp\Tools;
 
+use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
+use Laravel\Mcp\Server\Contracts\IsReadOnly;
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
-use LucianoTonet\TelescopeMcp\Support\Logger;
-use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use LucianoTonet\TelescopeMcp\MCP\Tools\Traits\BatchQuerySupport;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
-class ExceptionsTool extends AbstractTool
+/**
+ * Tool for interacting with exceptions recorded by Telescope
+ */
+class ExceptionsTool extends Tool implements IsReadOnly
 {
     use BatchQuerySupport;
 
-    /**
-     * Retorna o nome curto da ferramenta
-     */
-    public function getShortName(): string
-    {
-        return 'exceptions';
-    }
+    protected string $name = 'exceptions';
+    protected string $title = 'Telescope Exceptions';
+    protected string $description = 'Displays exceptions recorded by Telescope, allowing you to view complete details of application errors.';
 
-    /**
-     * Retorna o esquema da ferramenta
-     */
-    public function getSchema(): array
-    {
-        return [
-            'name' => $this->getName(),
-            'description' => 'Exibe exceções registradas pelo Telescope, permitindo visualizar detalhes completos de erros da aplicação.',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'id' => [
-                        'type' => 'string',
-                        'description' => 'ID da exceção específica para ver detalhes'
-                    ],
-                    'request_id' => [
-                        'type' => 'string',
-                        'description' => 'Filter exceptions by the request ID they belong to (uses batch_id grouping)'
-                    ],
-                    'limit' => [
-                        'type' => 'integer',
-                        'description' => 'Número máximo de exceções a retornar',
-                        'default' => 50
-                    ]
-                ],
-                'required' => []
-            ],
-            'outputSchema' => [
-                'type' => 'object',
-                'properties' => [
-                    'content' => [
-                        'type' => 'array',
-                        'items' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'type' => [
-                                    'type' => 'string',
-                                    'enum' => ['text', 'json', 'markdown', 'html']
-                                ],
-                                'text' => ['type' => 'string']
-                            ],
-                            'required' => ['type', 'text']
-                        ]
-                    ]
-                ],
-                'required' => ['content']
-            ],
-            'examples' => [
-                [
-                    'description' => 'Listar as últimas 10 exceções',
-                    'params' => [
-                        'limit' => 10
-                    ]
-                ],
-                [
-                    'description' => 'Ver detalhes de uma exceção específica',
-                    'params' => [
-                        'id' => '123456'
-                    ]
-                ],
-                [
-                    'description' => 'List exceptions for a specific request',
-                    'params' => ['request_id' => 'abc123']
-                ]
-            ]
-        ];
-    }
-
-    /**
-     * Executa a ferramenta com os parâmetros fornecidos
-     */
-    public function execute(array $params): array
+    public function handle(Request $request, EntriesRepository $repository): Response
     {
         try {
-            Logger::info($this->getName() . ' execute method called', ['params' => $params]);
-
-            // Verificar se foi solicitado detalhes de uma exceção específica
-            if ($this->hasId($params)) {
-                return $this->getExceptionDetails($params['id']);
+            if ($id = $request->get('id')) {
+                return $this->getExceptionDetails($id, $repository);
             }
 
-            // Check if filtering by request_id
-            if ($this->hasRequestId($params)) {
-                return $this->listExceptionsForRequest($params['request_id'], $params);
+            if ($requestId = $request->get('request_id')) {
+                return $this->listExceptionsForRequest($requestId, $request, $repository);
             }
 
-            return $this->listExceptions($params);
+            return $this->listExceptions($request, $repository);
         } catch (\Exception $e) {
-            Logger::error($this->getName() . ' execution error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return $this->formatError('Error: ' . $e->getMessage());
+            return Response::error('Error: ' . $e->getMessage());
         }
     }
 
-    /**
-     * Lista as exceções registradas pelo Telescope
-     */
-    protected function listExceptions($params)
+    public function schema(JsonSchema $schema): array
     {
-        // Definir limite para a consulta
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
+        return [
+            'id' => $schema->string()->description('ID of specific exception to view details'),
+            'request_id' => $schema->string()->description('Filter exceptions by the request ID they belong to (uses batch_id grouping)'),
+            'limit' => $schema->integer()->default(50)->description('Maximum number of exceptions to return'),
+        ];
+    }
 
-        // Configurar opções
+    protected function listExceptions(Request $request, EntriesRepository $repository): Response
+    {
+        $limit = min($request->integer('limit', 50), 100);
+
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Buscar entradas usando o repositório
-        $entries = $this->entriesRepository->get(EntryType::EXCEPTION, $options);
+        $entries = $repository->get(EntryType::EXCEPTION, $options);
 
         if (empty($entries)) {
-            return $this->formatResponse("Nenhuma exceção encontrada.");
+            return Response::text("No exceptions found.");
         }
 
         $exceptions = [];
@@ -142,10 +68,8 @@ class ExceptionsTool extends AbstractTool
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
 
-            // Format the date using DateFormatter
             $createdAt = DateFormatter::format($entry->createdAt);
 
-            // Extract relevant information from the exception
             $className = $content['class'] ?? 'Unknown';
             $message = $content['message'] ?? 'No message';
             $file = $content['file'] ?? 'Unknown';
@@ -161,20 +85,17 @@ class ExceptionsTool extends AbstractTool
             ];
         }
 
-        // Formatação tabular para facilitar a leitura
         $table = "Application Exceptions:\n\n";
         $table .= sprintf("%-5s %-30s %-40s %-20s\n", "ID", "Exception", "Message", "Occurred At");
         $table .= str_repeat("-", 100) . "\n";
 
         foreach ($exceptions as $exception) {
-            // Truncar mensagem longa
             $message = $exception['message'];
             $message = $this->safeString($message);
             if (strlen($message) > 40) {
                 $message = substr($message, 0, 37) . "...";
             }
 
-            // Obter apenas o nome da classe sem namespace
             $className = $exception['class'];
             if (strpos($className, '\\') !== false) {
                 $parts = explode('\\', $className);
@@ -195,34 +116,23 @@ class ExceptionsTool extends AbstractTool
             'exceptions' => $exceptions
         ], JSON_PRETTY_PRINT);
 
-        return $this->formatResponse($combinedText);
+        return Response::text($combinedText);
     }
 
-    /**
-     * Lists exceptions for a specific request using batch_id
-     *
-     * @param string $requestId The request ID
-     * @param array $params Tool parameters
-     * @return array Response in MCP format
-     */
-    protected function listExceptionsForRequest(string $requestId, array $params): array
+    protected function listExceptionsForRequest(string $requestId, Request $request, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' listing exceptions for request', ['request_id' => $requestId]);
-
-        // Get the batch_id for this request
         $batchId = $this->getBatchIdForRequest($requestId);
 
         if (!$batchId) {
-            return $this->formatError("Request not found or has no batch ID: {$requestId}");
+            return Response::error("Request not found or has no batch ID: {$requestId}");
         }
 
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
+        $limit = min($request->integer('limit', 50), 100);
 
-        // Get exceptions for this batch
         $entries = $this->getEntriesByBatchId($batchId, 'exception', $limit);
 
         if (empty($entries)) {
-            return $this->formatResponse("No exceptions found for request: {$requestId}");
+            return Response::text("No exceptions found for request: {$requestId}");
         }
 
         $exceptions = [];
@@ -246,7 +156,6 @@ class ExceptionsTool extends AbstractTool
             ];
         }
 
-        // Formatação tabular com contexto do request
         $table = "Exceptions for Request: {$requestId}\n";
         $table .= "Batch ID: {$batchId}\n";
         $table .= "Total: " . count($exceptions) . " exceptions\n\n";
@@ -282,29 +191,21 @@ class ExceptionsTool extends AbstractTool
             'exceptions' => $exceptions
         ], JSON_PRETTY_PRINT);
 
-        return $this->formatResponse($combinedText);
+        return Response::text($combinedText);
     }
 
-    /**
-     * Obtém detalhes de uma exceção específica
-     */
-    protected function getExceptionDetails($id)
+    protected function getExceptionDetails(string $id, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' getting details', ['id' => $id]);
-
-        // Buscar a entrada específica
-        $entry = $this->getEntryDetails(EntryType::EXCEPTION, $id);
+        $entry = $repository->find($id);
 
         if (!$entry) {
-            return $this->formatError("Exceção não encontrada: {$id}");
+            return Response::error("Exception not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
 
-        // Format the date using DateFormatter
         $createdAt = DateFormatter::format($entry->createdAt);
 
-        // Detailed formatting of the exception
         $output = "Exception Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Type: " . (isset($content['class']) ? $content['class'] : 'Unknown') . "\n";
@@ -314,7 +215,6 @@ class ExceptionsTool extends AbstractTool
 
         $output .= "Occurred At: {$createdAt}\n\n";
 
-        // Stack Trace
         if (isset($content['trace']) && is_array($content['trace'])) {
             $output .= "Stack Trace:\n";
 
@@ -337,7 +237,6 @@ class ExceptionsTool extends AbstractTool
             }
         }
 
-        // Context se disponível
         if (isset($content['context']) && is_array($content['context'])) {
             $output .= "\nContext:\n";
             $output .= json_encode($content['context'], JSON_PRETTY_PRINT);
@@ -354,6 +253,26 @@ class ExceptionsTool extends AbstractTool
             'context' => $content['context'] ?? []
         ], JSON_PRETTY_PRINT);
 
-        return $this->formatResponse($combinedText);
+        return Response::text($combinedText);
+    }
+
+    /**
+     * Safely converts a value to a string
+     */
+    protected function safeString($value): string
+    {
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if (is_null($value)) {
+            return '';
+        }
+
+        if (is_array($value) || is_object($value)) {
+            return json_encode($value);
+        }
+
+        return (string) $value;
     }
 }

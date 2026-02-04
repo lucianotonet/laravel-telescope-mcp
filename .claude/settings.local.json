@@ -5,7 +5,9 @@
       "Bash(git checkout:*)",
       "Bash(composer require:*)",
       "Bash(php artisan:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(php -l:*)"
     ]
   }
 }
