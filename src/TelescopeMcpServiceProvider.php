@@ -13,8 +13,14 @@ class TelescopeMcpServiceProvider extends ServiceProvider
 {
     public function boot()
     {
+        if (!config('telescope-mcp.enabled', true)) {
+            return;
+        }
+
         // Register Laravel/MCP AI routes
-        $this->registerMcpRoutes();
+        if (config('telescope-mcp.routes', true)) {
+            $this->registerMcpRoutes();
+        }
 
         // Register as Local Server for stdio support (mcp:start, mcp:inspector)
         \Laravel\Mcp\Facades\Mcp::local(
@@ -27,9 +33,6 @@ class TelescopeMcpServiceProvider extends ServiceProvider
                 __DIR__ . '/../config/telescope-mcp.php' => config_path('telescope-mcp.php'),
             ], 'telescope-mcp-config');
 
-            $this->publishes([
-                __DIR__ . '/../routes/ai.php' => base_path('routes/ai.php'),
-            ], 'telescope-mcp-ai-routes');
 
             $this->commands([
                 ConnectMcpCommand::class,
@@ -44,7 +47,9 @@ class TelescopeMcpServiceProvider extends ServiceProvider
         $this->configureLogging();
 
         // Registrar rota de teste para gerar entradas no Telescope
-        $this->registerTestRoute();
+        if (config('telescope-mcp.routes', true)) {
+            $this->registerTestRoute();
+        }
     }
 
     protected function checkLaravelBoost()

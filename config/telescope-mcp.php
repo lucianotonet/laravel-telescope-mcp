@@ -24,6 +24,17 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Telescope MCP Web Routes
+    |--------------------------------------------------------------------------
+    |
+    | This option may be used to disable the web-based MCP server routes.
+    | If disabled, the MCP server will only be available via CLI (stdio).
+    |
+    */
+    'routes' => env('TELESCOPE_MCP_ROUTES_ENABLED', true),
+
+    /*
+    |--------------------------------------------------------------------------
     | Telescope MCP Route Middleware
     |--------------------------------------------------------------------------
     |
