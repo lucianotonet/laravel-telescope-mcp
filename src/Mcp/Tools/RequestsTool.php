@@ -28,7 +28,8 @@ class RequestsTool extends Tool
         try {
             if ($id = $request->get('id')) {
                 $includeRelated = $request->boolean('include_related', true);
-                return $this->getRequestDetails($id, $includeRelated, $repository);
+                $includeQueries = $request->boolean('include_queries', false);
+                return $this->getRequestDetails($id, $includeRelated, $includeQueries, $repository);
             }
             return $this->listRequests($request, $repository);
         } catch (\Exception $e) {
@@ -44,7 +45,8 @@ class RequestsTool extends Tool
             'method' => $schema->string()->description('Filter by HTTP method'),
             'status' => $schema->integer()->description('Filter by status code'),
             'path' => $schema->string()->description('Filter by path'),
-            'include_related' => $schema->boolean()->default(true),
+            'include_related' => $schema->boolean()->default(true)->description('Include summary of related entries'),
+            'include_queries' => $schema->boolean()->default(false)->description('Include detailed queries associated with this request'),
         ];
     }
 
@@ -61,7 +63,11 @@ class RequestsTool extends Tool
             $options->tag('status:' . $status);
         }
         if ($path = $request->get('path')) {
-            $options->tag('path:' . $path);
+            $uuids = $this->getRequestUuidsByPath($path, $limit);
+            if (empty($uuids)) {
+                return Response::text("No requests found for path: {$path}");
+            }
+            $options->uuids($uuids);
         }
 
         $entries = $repository->get(EntryType::REQUEST, $options);
@@ -110,7 +116,7 @@ class RequestsTool extends Tool
         return Response::text($table);
     }
 
-    protected function getRequestDetails(string $id, bool $includeRelated, EntriesRepository $repository): Response
+    protected function getRequestDetails(string $id, bool $includeRelated, bool $includeQueries, EntriesRepository $repository): Response
     {
         $entry = $repository->find($id);
         if (!$entry) {
@@ -128,27 +134,70 @@ class RequestsTool extends Tool
         $output .= "Created At: {$createdAt}\n";
 
         $relatedSummary = [];
-        if ($includeRelated && isset($entry->batchId) && $entry->batchId) {
-            $summary = $this->getBatchSummary($entry->batchId);
-            $typeLabels = ['query' => 'Queries', 'log' => 'Logs', 'cache' => 'Cache Operations',
-                'model' => 'Model Events', 'view' => 'Views', 'exception' => 'Exceptions',
-                'event' => 'Events', 'job' => 'Jobs', 'mail' => 'Mails',
-                'notification' => 'Notifications', 'redis' => 'Redis Operations'];
+        $batchQueries = [];
 
-            $output .= "\n--- Related Entries ---\n";
-            $hasRelated = false;
-            foreach ($summary as $type => $count) {
-                if ($type !== 'request') {
-                    $label = $typeLabels[$type] ?? ucfirst($type);
-                    $output .= "- {$label}: {$count}\n";
-                    $relatedSummary[$type] = $count;
-                    $hasRelated = true;
+        if (($includeRelated || $includeQueries) && isset($entry->batchId) && $entry->batchId) {
+            if ($includeRelated) {
+                $summary = $this->getBatchSummary($entry->batchId);
+                $typeLabels = [
+                    'query' => 'Queries',
+                    'log' => 'Logs',
+                    'cache' => 'Cache Operations',
+                    'model' => 'Model Events',
+                    'view' => 'Views',
+                    'exception' => 'Exceptions',
+                    'event' => 'Events',
+                    'job' => 'Jobs',
+                    'mail' => 'Mails',
+                    'notification' => 'Notifications',
+                    'redis' => 'Redis Operations'
+                ];
+
+                $output .= "\n--- Related Entries ---\n";
+                $hasRelated = false;
+                foreach ($summary as $type => $count) {
+                    if ($type !== 'request') {
+                        $label = $typeLabels[$type] ?? ucfirst($type);
+                        $output .= "- {$label}: {$count}\n";
+                        $relatedSummary[$type] = $count;
+                        $hasRelated = true;
+                    }
+                }
+                if ($hasRelated) {
+                    $output .= "\nTip: Use 'queries --request_id={$id}' to see queries for this request.\n";
+                } else {
+                    $output .= "(No related entries found)\n";
                 }
             }
-            if ($hasRelated) {
-                $output .= "\nTip: Use 'queries --request_id={$id}' to see queries for this request.\n";
-            } else {
-                $output .= "(No related entries found)\n";
+
+            if ($includeQueries) {
+                $queryEntries = $this->getEntriesByBatchId($entry->batchId, 'query', 10);
+                if (!empty($queryEntries)) {
+                    $output .= "\n--- Associated Queries (Top 10) ---\n";
+                    foreach ($queryEntries as $q) {
+                        $sql = $q->content['sql'] ?? 'Unknown';
+                        $time = $q->content['time'] ?? 0;
+                        $location = isset($q->content['file']) ? " ({$q->content['file']}:{$q->content['line']})" : "";
+
+                        $output .= sprintf(
+                            "[%s] %-50s (%s ms)%s\n",
+                            $q->id,
+                            strlen($sql) > 50 ? substr($sql, 0, 47) . '...' : $sql,
+                            number_format($time, 2),
+                            $location
+                        );
+
+                        $batchQueries[] = [
+                            'id' => $q->id,
+                            'sql' => $sql,
+                            'duration' => $time,
+                            'location' => [
+                                'file' => $q->content['file'] ?? null,
+                                'line' => $q->content['line'] ?? null,
+                            ]
+                        ];
+                    }
+                }
             }
         }
 
@@ -176,6 +225,10 @@ class RequestsTool extends Tool
         ];
         if (!empty($relatedSummary)) {
             $jsonData['related_entries'] = $relatedSummary;
+        }
+
+        if (!empty($batchQueries)) {
+            $jsonData['queries'] = $batchQueries;
         }
 
         $output .= "\n\n--- JSON Data ---\n" . json_encode($jsonData, JSON_PRETTY_PRINT);

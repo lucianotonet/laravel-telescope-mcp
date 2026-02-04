@@ -134,4 +134,68 @@ trait BatchQuerySupport
 
         return $batchId;
     }
+
+    /**
+     * Find the most recent request UUID for a given path.
+     *
+     * @param string $path The URL path
+     * @return string|null The UUID or null if not found
+     */
+    protected function findRequestIdByPath(string $path): ?string
+    {
+        $uuids = $this->getRequestUuidsByPath($path, 1);
+        return $uuids[0] ?? null;
+    }
+
+    /**
+     * Search for request UUIDs by path.
+     *
+     * @param string $path The URL path
+     * @param int $limit Max results
+     * @return array Array of UUID strings
+     */
+    protected function getRequestUuidsByPath(string $path, int $limit = 50): array
+    {
+        try {
+            // Normalize path for search
+            $path = ltrim($path, '/');
+            $fullPath = '/' . $path;
+
+            // Try searching by tag first (fastest)
+            $uuidsByTag = DB::connection($this->getTelescopeConnection())
+                ->table('telescope_entries_tags')
+                ->join('telescope_entries', 'telescope_entries.uuid', '=', 'telescope_entries_tags.entry_uuid')
+                ->where('telescope_entries.type', 'request')
+                ->where(function ($query) use ($path, $fullPath) {
+                    $query->where('tag', 'path:' . $fullPath)
+                        ->orWhere('tag', 'path:' . $path)
+                        ->orWhere('tag', 'path:/' . $path);
+                })
+                ->orderBy('telescope_entries.sequence', 'desc')
+                ->limit($limit)
+                ->pluck('entry_uuid')
+                ->all();
+
+            if (count($uuidsByTag) > 0) {
+                return $uuidsByTag;
+            }
+
+            // Fallback: search by content column (more reliable but slower)
+            return DB::connection($this->getTelescopeConnection())
+                ->table('telescope_entries')
+                ->where('type', 'request')
+                ->where(function ($query) use ($path) {
+                    // Search for path string in various JSON formats
+                    $jsonPath = str_replace('/', '\\/', $path);
+                    $query->where('content', 'like', '%' . $path . '%')
+                        ->orWhere('content', 'like', '%' . $jsonPath . '%');
+                })
+                ->orderBy('sequence', 'desc')
+                ->limit($limit)
+                ->pluck('uuid')
+                ->all();
+        } catch (\Exception $e) {
+            return [];
+        }
+    }
 }

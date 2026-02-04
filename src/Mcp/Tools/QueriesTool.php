@@ -31,6 +31,11 @@ class QueriesTool extends Tool
                 return $this->getQueryDetails($id, $repository);
             }
 
+            // Check if filtering by path (most specific/direct UX)
+            if ($path = $request->get('path')) {
+                return $this->listQueriesForPath($path, $request, $repository);
+            }
+
             // Check if filtering by request_id
             if ($requestId = $request->get('request_id')) {
                 return $this->listQueriesForRequest($requestId, $request, $repository);
@@ -45,8 +50,9 @@ class QueriesTool extends Tool
     public function schema(JsonSchema $schema): array
     {
         return [
-            'id' => $schema->string()->description('ID of specific query to view details'),
-            'request_id' => $schema->string()->description('Filter queries by the request ID they belong to (uses batch_id grouping)'),
+            'id' => $schema->string()->description('ID of specific DATABASE QUERY to view details (Caution: do not use a request ID here)'),
+            'path' => $schema->string()->description('Get queries for the most recent request matching this path (e.g., /api/users)'),
+            'request_id' => $schema->string()->description('Filter queries by a specific Request ID (ID returned by the requests tool)'),
             'limit' => $schema->integer()->default(50)->description('Maximum number of queries to return'),
             'slow' => $schema->boolean()->default(false)->description('Filter only slow queries (>100ms)'),
         ];
@@ -118,6 +124,17 @@ class QueriesTool extends Tool
         return Response::text($combinedText);
     }
 
+    protected function listQueriesForPath(string $path, Request $request, EntriesRepository $repository): Response
+    {
+        $requestId = $this->findRequestIdByPath($path);
+
+        if (!$requestId) {
+            return Response::error("No request found for path: {$path}");
+        }
+
+        return $this->listQueriesForRequest($requestId, $request, $repository);
+    }
+
     protected function listQueriesForRequest(string $requestId, Request $request, EntriesRepository $repository): Response
     {
         // Get the batch_id for this request
@@ -157,6 +174,8 @@ class QueriesTool extends Tool
                 'duration' => $duration,
                 'connection' => $content['connection'] ?? 'default',
                 'created_at' => $createdAt,
+                'file' => $content['file'] ?? null,
+                'line' => $content['line'] ?? null,
             ];
         }
 
@@ -198,7 +217,20 @@ class QueriesTool extends Tool
         $entry = $repository->find($id);
 
         if (!$entry) {
+            // Smart Fallback: if not found, check if it's a request ID
+            $batchId = $this->getBatchIdForRequest($id);
+            if ($batchId) {
+                return $this->listQueriesForRequest($id, new Request(['limit' => 50]), $repository);
+            }
             return Response::error("Query not found: {$id}");
+        }
+
+        if ($entry->type !== EntryType::QUERY) {
+            // If ID belongs to another type (like request), and it has a batch, show its queries
+            $batchId = $this->getBatchIdForRequest($id);
+            if ($batchId) {
+                return $this->listQueriesForRequest($id, new Request(['limit' => 50]), $repository);
+            }
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
@@ -211,6 +243,11 @@ class QueriesTool extends Tool
         $output .= "Duration: " . number_format(($content['time'] ?? 0), 2) . "ms\n";
         $output .= "Created At: {$createdAt}\n\n";
 
+        // Location if available
+        if (isset($content['file'])) {
+            $output .= "Source: {$content['file']} at line {$content['line']}\n\n";
+        }
+
         // Full SQL
         $output .= "SQL:\n" . ($content['sql'] ?? 'Unknown') . "\n\n";
 
@@ -219,13 +256,28 @@ class QueriesTool extends Tool
             $output .= "Bindings:\n" . json_encode($content['bindings'], JSON_PRETTY_PRINT) . "\n";
         }
 
+        // Backtrace if available
+        if (isset($content['backtrace']) && !empty($content['backtrace'])) {
+            $output .= "Backtrace:\n";
+            foreach (array_slice($content['backtrace'], 0, 5) as $frame) {
+                $file = $frame['file'] ?? 'unknown';
+                $line = $frame['line'] ?? '?';
+                $output .= "- {$file}:{$line}\n";
+            }
+        }
+
         $combinedText = $output . "\n\n--- JSON Data ---\n" . json_encode([
             'id' => $entry->id,
             'connection' => $content['connection'] ?? 'default',
             'duration' => $content['time'] ?? 0,
             'created_at' => $createdAt,
+            'location' => [
+                'file' => $content['file'] ?? null,
+                'line' => $content['line'] ?? null,
+            ],
             'sql' => $content['sql'] ?? 'Unknown',
             'bindings' => $content['bindings'] ?? [],
+            'backtrace' => $content['backtrace'] ?? [],
         ], JSON_PRETTY_PRINT);
 
         return Response::text($combinedText);
