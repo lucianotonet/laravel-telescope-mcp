@@ -3,3 +3,5 @@
 .phpunit.result.cache
 composer.lock
 /.claude
+.php-cs-fixer.dist.php
+.php-cs-fixer.cache

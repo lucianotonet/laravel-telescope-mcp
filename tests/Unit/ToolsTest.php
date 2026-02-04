@@ -14,7 +14,7 @@ class ToolsTest extends TestCase
     {
         $date = Carbon::now();
         $formatted = DateFormatter::format($date);
-        
+
         $this->assertIsString($formatted);
         $this->assertMatchesRegularExpression('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $formatted);
     }
@@ -27,36 +27,36 @@ class ToolsTest extends TestCase
             {
                 return 'test_tool';
             }
-            
+
             public function getShortName(): string
             {
                 return 'test';
             }
-            
+
             public function getSchema(): array
             {
                 return [];
             }
-            
+
             public function execute(array $arguments = []): array
             {
                 return [];
             }
-            
+
             public function handle(array $arguments = []): array
             {
                 return [];
             }
-            
+
             public function testFormatError(\Exception $error): array
             {
                 return ['error' => $error->getMessage()];
             }
         };
-        
+
         $error = new \Exception('Test error message');
         $response = $tool->testFormatError($error);
-        
+
         $this->assertIsArray($response);
         $this->assertArrayHasKey('error', $response);
         $this->assertEquals('Test error message', $response['error']);
@@ -66,7 +66,7 @@ class ToolsTest extends TestCase
     public function it_handles_null_dates()
     {
         $formatted = DateFormatter::format(null);
-        
+
         $this->assertEquals('Unknown', $formatted);
     }
-} 
+}

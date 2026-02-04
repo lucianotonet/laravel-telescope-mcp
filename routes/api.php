@@ -21,7 +21,7 @@ Route::any('{any}', function () {
     \LucianoTonet\TelescopeMcp\Support\Logger::info('Route not found', [
         'method' => request()->method(),
         'path' => request()->path(),
-        'input' => request()->all()
+        'input' => request()->all(),
     ]);
     return response()->json(['error' => 'Route not found'], 404);
 })->where('any', '.*');

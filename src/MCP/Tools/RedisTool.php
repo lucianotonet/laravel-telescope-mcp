@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -53,7 +52,9 @@ class RedisTool extends Tool
         }
 
         $entries = $repository->get(EntryType::REDIS, $options);
-        if (empty($entries)) return Response::text("No Redis operations found.");
+        if (empty($entries)) {
+            return Response::text("No Redis operations found.");
+        }
 
         $operations = [];
         foreach ($entries as $entry) {
@@ -63,7 +64,7 @@ class RedisTool extends Tool
                 'command' => $content['command'] ?? 'Unknown',
                 'parameters' => $content['parameters'] ?? [],
                 'duration' => $content['duration'] ?? 0,
-                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown'
+                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown',
             ];
         }
 
@@ -72,7 +73,7 @@ class RedisTool extends Tool
         $table .= str_repeat("-", 120) . "\n";
 
         foreach ($operations as $op) {
-            $params = implode(' ', array_map(function($param) {
+            $params = implode(' ', array_map(function ($param) {
                 $paramStr = is_string($param) ? $param : json_encode($param);
                 return strlen($paramStr) > 20 ? substr($paramStr, 0, 17) . "..." : $paramStr;
             }, $op['parameters']));
@@ -81,9 +82,14 @@ class RedisTool extends Tool
                 $params = substr($params, 0, 47) . "...";
             }
 
-            $table .= sprintf("%-5s %-15s %-50s %-10s %-20s\n",
-                $op['id'], $op['command'], $params,
-                number_format($op['duration'], 2), $op['created_at']);
+            $table .= sprintf(
+                "%-5s %-15s %-50s %-10s %-20s\n",
+                $op['id'],
+                $op['command'],
+                $params,
+                number_format($op['duration'], 2),
+                $op['created_at']
+            );
         }
 
         $table .= "\n\n--- JSON Data ---\n" . json_encode(['total' => count($operations), 'operations' => $operations], JSON_PRETTY_PRINT);
@@ -93,7 +99,9 @@ class RedisTool extends Tool
     protected function getRedisDetails(string $id, EntriesRepository $repository): Response
     {
         $entry = $repository->find($id);
-        if (!$entry) return Response::error("Redis operation not found: {$id}");
+        if (!$entry) {
+            return Response::error("Redis operation not found: {$id}");
+        }
 
         $content = is_array($entry->content) ? $entry->content : [];
         $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';

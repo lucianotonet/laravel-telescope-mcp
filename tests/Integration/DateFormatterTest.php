@@ -13,7 +13,7 @@ class DateFormatterTest extends TestCase
     {
         $date = Carbon::create(2024, 3, 14, 10, 30, 45);
         $formatted = DateFormatter::format($date);
-        
+
         $this->assertEquals('2024-03-14 10:30:45', $formatted);
     }
 
@@ -22,7 +22,7 @@ class DateFormatterTest extends TestCase
     {
         $date = new \DateTime('2024-03-14 10:30:45');
         $formatted = DateFormatter::format($date);
-        
+
         $this->assertEquals('2024-03-14 10:30:45', $formatted);
     }
 
@@ -31,7 +31,7 @@ class DateFormatterTest extends TestCase
     {
         $date = '2024-03-14 10:30:45';
         $formatted = DateFormatter::format($date);
-        
+
         $this->assertEquals('2024-03-14 10:30:45', $formatted);
     }
 
@@ -39,7 +39,7 @@ class DateFormatterTest extends TestCase
     public function it_handles_invalid_dates()
     {
         $formatted = DateFormatter::format('invalid-date');
-        
+
         $this->assertEquals('Unknown', $formatted);
     }
 
@@ -47,7 +47,7 @@ class DateFormatterTest extends TestCase
     public function it_handles_null_values()
     {
         $formatted = DateFormatter::format(null);
-        
+
         $this->assertEquals('Unknown', $formatted);
     }
-} 
+}

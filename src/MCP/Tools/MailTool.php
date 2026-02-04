@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -54,11 +53,17 @@ class MailTool extends Tool
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        if ($to = $request->get('to')) $options->tag($to);
-        if ($subject = $request->get('subject')) $options->tag($subject);
+        if ($to = $request->get('to')) {
+            $options->tag($to);
+        }
+        if ($subject = $request->get('subject')) {
+            $options->tag($subject);
+        }
 
         $entries = $repository->get(EntryType::MAIL, $options);
-        if (empty($entries)) return Response::text("No emails found.");
+        if (empty($entries)) {
+            return Response::text("No emails found.");
+        }
 
         $mails = [];
         foreach ($entries as $entry) {
@@ -80,7 +85,7 @@ class MailTool extends Tool
                 'id' => $entry->id,
                 'subject' => $content['subject'] ?? 'No Subject',
                 'to' => implode(', ', $to),
-                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown'
+                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown',
             ];
         }
 
@@ -92,8 +97,13 @@ class MailTool extends Tool
             $subject = strlen($mail['subject']) > 40 ? substr($mail['subject'], 0, 37) . "..." : $mail['subject'];
             $to = strlen($mail['to']) > 40 ? substr($mail['to'], 0, 37) . "..." : $mail['to'];
 
-            $table .= sprintf("%-5s %-40s %-40s %-20s\n",
-                $mail['id'], $subject, $to, $mail['created_at']);
+            $table .= sprintf(
+                "%-5s %-40s %-40s %-20s\n",
+                $mail['id'],
+                $subject,
+                $to,
+                $mail['created_at']
+            );
         }
 
         $table .= "\n\n--- JSON Data ---\n" . json_encode(['total' => count($mails), 'emails' => $mails], JSON_PRETTY_PRINT);
@@ -103,7 +113,9 @@ class MailTool extends Tool
     protected function getMailDetails(string $id, bool $includeRelated, EntriesRepository $repository): Response
     {
         $entry = $repository->find($id);
-        if (!$entry) return Response::error("Email not found: {$id}");
+        if (!$entry) {
+            return Response::error("Email not found: {$id}");
+        }
 
         $content = is_array($entry->content) ? $entry->content : [];
         $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
@@ -116,8 +128,8 @@ class MailTool extends Tool
             $output .= "To:\n";
             foreach ($content['to'] as $recipient) {
                 if (is_array($recipient)) {
-                    $output .= "- " . ($recipient['address'] ?? '') .
-                             (isset($recipient['name']) ? " ({$recipient['name']})" : '') . "\n";
+                    $output .= "- " . ($recipient['address'] ?? '')
+                             . (isset($recipient['name']) ? " ({$recipient['name']})" : '') . "\n";
                 } else {
                     $output .= "- " . $recipient . "\n";
                 }
@@ -129,8 +141,8 @@ class MailTool extends Tool
             $output .= "\nCC:\n";
             foreach ($content['cc'] as $recipient) {
                 if (is_array($recipient)) {
-                    $output .= "- " . ($recipient['address'] ?? '') .
-                             (isset($recipient['name']) ? " ({$recipient['name']})" : '') . "\n";
+                    $output .= "- " . ($recipient['address'] ?? '')
+                             . (isset($recipient['name']) ? " ({$recipient['name']})" : '') . "\n";
                 } else {
                     $output .= "- " . $recipient . "\n";
                 }
@@ -142,8 +154,8 @@ class MailTool extends Tool
             $output .= "\nBCC:\n";
             foreach ($content['bcc'] as $recipient) {
                 if (is_array($recipient)) {
-                    $output .= "- " . ($recipient['address'] ?? '') .
-                             (isset($recipient['name']) ? " ({$recipient['name']})" : '') . "\n";
+                    $output .= "- " . ($recipient['address'] ?? '')
+                             . (isset($recipient['name']) ? " ({$recipient['name']})" : '') . "\n";
                 } else {
                     $output .= "- " . $recipient . "\n";
                 }
@@ -199,9 +211,11 @@ class MailTool extends Tool
             'subject' => $content['subject'] ?? 'No Subject',
             'created_at' => $createdAt,
         ];
-        if (!empty($relatedSummary)) $jsonData['related_entries'] = $relatedSummary;
+        if (!empty($relatedSummary)) {
+            $jsonData['related_entries'] = $relatedSummary;
+        }
 
         $output .= "\n\n--- JSON Data ---\n" . json_encode($jsonData, JSON_PRETTY_PRINT);
         return Response::text($output);
     }
-} 
+}

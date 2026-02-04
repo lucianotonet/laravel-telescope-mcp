@@ -14,7 +14,7 @@ class TelescopeMcpTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->loadLaravelMigrations();
         $this->loadMigrationsFrom(__DIR__ . '/../../vendor/laravel/telescope/database/migrations');
     }
@@ -36,17 +36,17 @@ class TelescopeMcpTest extends TestCase
             'database' => ':memory:',
             'prefix' => '',
         ]);
-        
+
         // Configure MCP
         $app['config']->set('telescope-mcp.enabled', true);
         $app['config']->set('telescope-mcp.path', 'mcp');
         $app['config']->set('telescope-mcp.middleware', []);
-        
+
         // Configure logging
         $app['config']->set('telescope-mcp.logging.enabled', true);
         $app['config']->set('telescope-mcp.logging.path', storage_path('logs/telescope-mcp.log'));
         $app['config']->set('telescope-mcp.logging.level', 'debug');
-        
+
         // Configure error reporting
         $app['config']->set('app.debug', true);
     }
@@ -62,10 +62,10 @@ class TelescopeMcpTest extends TestCase
             'params' => [
                 'name' => 'logs',
                 'arguments' => [
-                    'limit' => 10
-                ]
+                    'limit' => 10,
+                ],
             ],
-            'id' => 1
+            'id' => 1,
         ]);
 
         $this->assertNotNull($response);
@@ -84,11 +84,11 @@ class TelescopeMcpTest extends TestCase
                         'content' => [
                             '*' => [
                                 'type',
-                                'text'
-                            ]
-                        ]
+                                'text',
+                            ],
+                        ],
                     ],
-                    'id'
+                    'id',
                 ]);
     }
 
@@ -103,10 +103,10 @@ class TelescopeMcpTest extends TestCase
             'params' => [
                 'name' => 'requests',
                 'arguments' => [
-                    'limit' => 10
-                ]
+                    'limit' => 10,
+                ],
             ],
-            'id' => 2
+            'id' => 2,
         ]);
 
         $this->assertNotNull($response);
@@ -125,11 +125,11 @@ class TelescopeMcpTest extends TestCase
                         'content' => [
                             '*' => [
                                 'type',
-                                'text'
-                            ]
-                        ]
+                                'text',
+                            ],
+                        ],
                     ],
-                    'id'
+                    'id',
                 ]);
     }
 
@@ -146,12 +146,12 @@ class TelescopeMcpTest extends TestCase
                         'serverInfo' => [
                             'name',
                             'version',
-                            'description'
+                            'description',
                         ],
                         'capabilities' => [
-                            'tools'
-                        ]
-                    ]
+                            'tools',
+                        ],
+                    ],
                 ]);
     }
-} 
+}

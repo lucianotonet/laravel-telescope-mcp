@@ -44,4 +44,4 @@ return [
         'enabled' => env('TELESCOPE_MCP_LOGGING_ENABLED', true),
         'channel' => env('TELESCOPE_MCP_LOG_CHANNEL', 'stack'),
     ],
-]; 
+];

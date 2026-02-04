@@ -40,7 +40,7 @@ class McpServerCommand extends Command
             $server->start();
 
             $this->info('Telescope MCP Server started in stdio mode', 'stderr');
-            
+
             $transport->run();
 
         } catch (\Exception $e) {

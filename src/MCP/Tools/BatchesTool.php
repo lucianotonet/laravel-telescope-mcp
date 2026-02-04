@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -49,12 +48,18 @@ class BatchesTool extends Tool
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        if ($status = $request->get('status')) $options->tag('status:' . $status);
-        if ($name = $request->get('name')) $options->tag('name:' . $name);
+        if ($status = $request->get('status')) {
+            $options->tag('status:' . $status);
+        }
+        if ($name = $request->get('name')) {
+            $options->tag('name:' . $name);
+        }
 
         $entries = $repository->get(EntryType::BATCH, $options);
 
-        if (empty($entries)) return Response::text("No batch operations found.");
+        if (empty($entries)) {
+            return Response::text("No batch operations found.");
+        }
 
         $batches = [];
         foreach ($entries as $entry) {
@@ -76,13 +81,22 @@ class BatchesTool extends Tool
                 'finished' => $finishedJobs,
                 'pending' => $pendingJobs,
                 'failed' => $failedJobs,
-                'created_at' => $createdAt
+                'created_at' => $createdAt,
             ];
         }
 
         $table = "Batch Operations:\n\n";
-        $table .= sprintf("%-5s %-30s %-10s %-8s %-8s %-8s %-8s %-20s\n",
-            "ID", "Name", "Status", "Total", "Done", "Pending", "Failed", "Created At");
+        $table .= sprintf(
+            "%-5s %-30s %-10s %-8s %-8s %-8s %-8s %-20s\n",
+            "ID",
+            "Name",
+            "Status",
+            "Total",
+            "Done",
+            "Pending",
+            "Failed",
+            "Created At"
+        );
         $table .= str_repeat("-", 105) . "\n";
 
         foreach ($batches as $batch) {
@@ -123,7 +137,9 @@ class BatchesTool extends Tool
     protected function getBatchDetails(string $id, EntriesRepository $repository): Response
     {
         $entry = $repository->find($id);
-        if (!$entry) return Response::error("Batch operation not found: {$id}");
+        if (!$entry) {
+            return Response::error("Batch operation not found: {$id}");
+        }
 
         $content = is_array($entry->content) ? $entry->content : [];
 
@@ -176,9 +192,8 @@ class BatchesTool extends Tool
     protected function safeString($value): string
     {
         if (!is_string($value)) {
-            return (string)$value;
+            return (string) $value;
         }
         return $value;
     }
 }
- 

@@ -25,7 +25,7 @@ class PruneTool extends Tool
             $hours = $request->integer('hours', 24);
 
             Artisan::call('telescope:prune', [
-                '--hours' => $hours
+                '--hours' => $hours,
             ]);
 
             $output = Artisan::output();

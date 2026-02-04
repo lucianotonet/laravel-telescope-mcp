@@ -4,6 +4,7 @@ namespace LucianoTonet\TelescopeMcp\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
+
 use function Laravel\Prompts\multiselect;
 
 class InstallMcpCommand extends Command
@@ -177,7 +178,7 @@ class InstallMcpCommand extends Command
                     continue; // Detected via global, move to next
                 }
             }
-            
+
             // Also check project config
             if ($client['paths']['project']) {
                 $projectPath = base_path($client['paths']['project']);
@@ -246,7 +247,7 @@ class InstallMcpCommand extends Command
     {
         $client = $this->mcpClients[$clientKey];
         $isGlobal = $this->option('global');
-        
+
         // Determine target path
         if ($isGlobal) {
             if (empty($client['paths']['global'])) {
@@ -255,7 +256,7 @@ class InstallMcpCommand extends Command
             }
             $configPath = $this->expandPath($client['paths']['global']);
         } else {
-             if (empty($client['paths']['project'])) {
+            if (empty($client['paths']['project'])) {
                 $this->components->warn("No project configuration path available for {$client['name']}. Skipping.");
                 return false;
             }
@@ -267,7 +268,7 @@ class InstallMcpCommand extends Command
         // Ensure directory exists
         $directory = dirname($configPath);
         if (!File::exists($directory)) {
-            File::makeDirectory($directory, 0755, true);
+            File::makeDirectory($directory, 0o755, true);
         }
 
         try {
@@ -313,11 +314,11 @@ class InstallMcpCommand extends Command
                 File::put($path, $tomlConfig);
             } else {
                 $content = File::get($path);
-                
+
                 // Check if already configured to avoid duplication
                 if (str_contains($content, '[mcpServers.laravel-telescope]')) {
-                   $this->components->warn("Laravel Telescope already configured in {$path}");
-                   return true;
+                    $this->components->warn("Laravel Telescope already configured in {$path}");
+                    return true;
                 }
 
                 File::append($path, "\n" . $tomlConfig);
@@ -371,7 +372,7 @@ class InstallMcpCommand extends Command
             'command' => 'php',
             'args' => [
                 'artisan',
-                'telescope-mcp:server'
+                'telescope-mcp:server',
             ],
             'cwd' => $basePath,
             'env' => [
@@ -387,21 +388,21 @@ class InstallMcpCommand extends Command
     {
         $toml = "[mcpServers.laravel-telescope]\n";
         $toml .= "command = \"{$config['command']}\"\n";
-        
+
         $args = array_map(fn($arg) => "\"{$arg}\"", $config['args']);
         $toml .= "args = [" . implode(', ', $args) . "]\n";
-        
+
         // Escape backslashes in Windows paths for TOML
         $cwd = str_replace('\\', '\\\\', $config['cwd']);
         $toml .= "cwd = \"{$cwd}\"\n";
-        
+
         if (!empty($config['env'])) {
             $toml .= "\n[mcpServers.laravel-telescope.env]\n";
             foreach ($config['env'] as $key => $value) {
                 $toml .= "{$key} = \"{$value}\"\n";
             }
         }
-        
+
         return $toml;
     }
 
@@ -422,8 +423,8 @@ class InstallMcpCommand extends Command
 
         $this->line('<fg=cyan>' . json_encode([
             'mcpServers' => [
-                'laravel-telescope' => $config
-            ]
+                'laravel-telescope' => $config,
+            ],
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . '</>');
 
         $this->newLine();
@@ -466,7 +467,7 @@ class InstallMcpCommand extends Command
                     $this->line('  2. Navigate to MCP Servers');
                     $this->line('  3. Enable "laravel-telescope"');
                     break;
-                
+
                 case 'gemini':
                 case 'opencode':
                 case 'codex':

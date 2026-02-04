@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -71,13 +70,19 @@ class CommandsTool extends Tool
                 'command' => $content['command'] ?? 'Unknown',
                 'exit_code' => $content['exit_code'] ?? 0,
                 'arguments' => isset($content['arguments']) ? implode(' ', $content['arguments']) : '',
-                'created_at' => $createdAt
+                'created_at' => $createdAt,
             ];
         }
 
         $table = "Command Executions:\n\n";
-        $table .= sprintf("%-5s %-20s %-40s %-10s %-20s\n",
-            "ID", "Command", "Arguments/Options", "Status", "Created At");
+        $table .= sprintf(
+            "%-5s %-20s %-40s %-10s %-20s\n",
+            "ID",
+            "Command",
+            "Arguments/Options",
+            "Status",
+            "Created At"
+        );
         $table .= str_repeat("-", 100) . "\n";
 
         foreach ($commands as $cmd) {
@@ -91,13 +96,19 @@ class CommandsTool extends Tool
                 $statusStr .= " [{$cmd['exit_code']}]";
             }
 
-            $table .= sprintf("%-5s %-20s %-40s %-10s %-20s\n",
-                $cmd['id'], $cmd['command'], $params, $statusStr, $cmd['created_at']);
+            $table .= sprintf(
+                "%-5s %-20s %-40s %-10s %-20s\n",
+                $cmd['id'],
+                $cmd['command'],
+                $params,
+                $statusStr,
+                $cmd['created_at']
+            );
         }
 
         $table .= "\n\n--- JSON Data ---\n" . json_encode([
             'total' => count($commands),
-            'commands' => $commands
+            'commands' => $commands,
         ], JSON_PRETTY_PRINT);
 
         return Response::text($table);
@@ -150,7 +161,7 @@ class CommandsTool extends Tool
             'arguments' => $content['arguments'] ?? [],
             'options' => $content['options'] ?? [],
             'output' => $content['output'] ?? null,
-            'created_at' => $createdAt
+            'created_at' => $createdAt,
         ], JSON_PRETTY_PRINT);
 
         return Response::text($output);
@@ -172,4 +183,4 @@ class CommandsTool extends Tool
             return (string) $value;
         }
     }
-} 
+}

@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -83,13 +82,19 @@ class DumpsTool extends Tool
                 'file' => $file,
                 'line' => $line,
                 'dump' => $dump,
-                'created_at' => $createdAt
+                'created_at' => $createdAt,
             ];
         }
 
         $table = "Dump Entries:\n\n";
-        $table .= sprintf("%-5s %-40s %-6s %-50s %-20s\n",
-            "ID", "File", "Line", "Content", "Created At");
+        $table .= sprintf(
+            "%-5s %-40s %-6s %-50s %-20s\n",
+            "ID",
+            "File",
+            "Line",
+            "Content",
+            "Created At"
+        );
         $table .= str_repeat("-", 125) . "\n";
 
         foreach ($dumps as $dump) {
@@ -98,13 +103,19 @@ class DumpsTool extends Tool
                 $file = "..." . substr($file, -37);
             }
 
-            $table .= sprintf("%-5s %-40s %-6s %-50s %-20s\n",
-                $dump['id'], $file, $dump['line'], $dump['dump'], $dump['created_at']);
+            $table .= sprintf(
+                "%-5s %-40s %-6s %-50s %-20s\n",
+                $dump['id'],
+                $file,
+                $dump['line'],
+                $dump['dump'],
+                $dump['created_at']
+            );
         }
 
         $table .= "\n\n--- JSON Data ---\n" . json_encode([
             'total' => count($dumps),
-            'dumps' => $dumps
+            'dumps' => $dumps,
         ], JSON_PRETTY_PRINT);
 
         return Response::text($table);
@@ -141,7 +152,7 @@ class DumpsTool extends Tool
             'file' => $content['file'] ?? 'Unknown',
             'line' => $content['line'] ?? 'Unknown',
             'dump' => $content['dump'] ?? null,
-            'created_at' => $createdAt
+            'created_at' => $createdAt,
         ], JSON_PRETTY_PRINT);
 
         return Response::text($output);
@@ -163,4 +174,4 @@ class DumpsTool extends Tool
             return (string) $value;
         }
     }
-} 
+}

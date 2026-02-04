@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -54,11 +53,17 @@ class NotificationsTool extends Tool
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        if ($channel = $request->get('channel')) $options->tag('channel:' . $channel);
-        if ($status = $request->get('status')) $options->tag('status:' . $status);
+        if ($channel = $request->get('channel')) {
+            $options->tag('channel:' . $channel);
+        }
+        if ($status = $request->get('status')) {
+            $options->tag('status:' . $status);
+        }
 
         $entries = $repository->get(EntryType::NOTIFICATION, $options);
-        if (empty($entries)) return Response::text("No notifications found.");
+        if (empty($entries)) {
+            return Response::text("No notifications found.");
+        }
 
         $notifications = [];
         foreach ($entries as $entry) {
@@ -68,21 +73,33 @@ class NotificationsTool extends Tool
                 'channel' => $content['channel'] ?? 'Unknown',
                 'notification' => $content['notification'] ?? 'Unknown',
                 'notifiable' => $content['notifiable'] ?? 'Unknown',
-                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown'
+                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown',
             ];
         }
 
         $table = "Notifications:\n\n";
-        $table .= sprintf("%-5s %-15s %-30s %-30s %-20s\n",
-            "ID", "Channel", "Notifiable", "Notification", "Created At");
+        $table .= sprintf(
+            "%-5s %-15s %-30s %-30s %-20s\n",
+            "ID",
+            "Channel",
+            "Notifiable",
+            "Notification",
+            "Created At"
+        );
         $table .= str_repeat("-", 120) . "\n";
 
         foreach ($notifications as $notif) {
             $notifiable = strlen($notif['notifiable']) > 30 ? substr($notif['notifiable'], 0, 27) . "..." : $notif['notifiable'];
             $notification = strlen($notif['notification']) > 30 ? substr($notif['notification'], 0, 27) . "..." : $notif['notification'];
 
-            $table .= sprintf("%-5s %-15s %-30s %-30s %-20s\n",
-                $notif['id'], $notif['channel'], $notifiable, $notification, $notif['created_at']);
+            $table .= sprintf(
+                "%-5s %-15s %-30s %-30s %-20s\n",
+                $notif['id'],
+                $notif['channel'],
+                $notifiable,
+                $notification,
+                $notif['created_at']
+            );
         }
 
         $table .= "\n\n--- JSON Data ---\n" . json_encode(['total' => count($notifications), 'notifications' => $notifications], JSON_PRETTY_PRINT);
@@ -92,7 +109,9 @@ class NotificationsTool extends Tool
     protected function getNotificationDetails(string $id, bool $includeRelated, EntriesRepository $repository): Response
     {
         $entry = $repository->find($id);
-        if (!$entry) return Response::error("Notification not found: {$id}");
+        if (!$entry) {
+            return Response::error("Notification not found: {$id}");
+        }
 
         $content = is_array($entry->content) ? $entry->content : [];
         $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
@@ -160,9 +179,11 @@ class NotificationsTool extends Tool
             'notifiable' => $content['notifiable'] ?? 'Unknown',
             'created_at' => $createdAt,
         ];
-        if (!empty($relatedSummary)) $jsonData['related_entries'] = $relatedSummary;
+        if (!empty($relatedSummary)) {
+            $jsonData['related_entries'] = $relatedSummary;
+        }
 
         $output .= "\n\n--- JSON Data ---\n" . json_encode($jsonData, JSON_PRETTY_PRINT);
         return Response::text($output);
     }
-} 
+}

@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -81,7 +80,7 @@ class ExceptionsTool extends Tool
                 'message' => $message,
                 'file' => $file,
                 'line' => $line,
-                'occurred_at' => $createdAt
+                'occurred_at' => $createdAt,
             ];
         }
 
@@ -113,7 +112,7 @@ class ExceptionsTool extends Tool
 
         $combinedText = $table . "\n\n--- JSON Data ---\n" . json_encode([
             'total' => count($exceptions),
-            'exceptions' => $exceptions
+            'exceptions' => $exceptions,
         ], JSON_PRETTY_PRINT);
 
         return Response::text($combinedText);
@@ -152,7 +151,7 @@ class ExceptionsTool extends Tool
                 'message' => $message,
                 'file' => $file,
                 'line' => $line,
-                'occurred_at' => $createdAt
+                'occurred_at' => $createdAt,
             ];
         }
 
@@ -188,7 +187,7 @@ class ExceptionsTool extends Tool
             'request_id' => $requestId,
             'batch_id' => $batchId,
             'total' => count($exceptions),
-            'exceptions' => $exceptions
+            'exceptions' => $exceptions,
         ], JSON_PRETTY_PRINT);
 
         return Response::text($combinedText);
@@ -208,10 +207,10 @@ class ExceptionsTool extends Tool
 
         $output = "Exception Details:\n\n";
         $output .= "ID: {$entry->id}\n";
-        $output .= "Type: " . (isset($content['class']) ? $content['class'] : 'Unknown') . "\n";
-        $output .= "Message: " . (isset($content['message']) ? $content['message'] : 'No message') . "\n";
-        $output .= "File: " . (isset($content['file']) ? $content['file'] : 'Unknown') . "\n";
-        $output .= "Line: " . (isset($content['line']) ? $content['line'] : 'Unknown') . "\n";
+        $output .= "Type: " . ($content['class'] ?? 'Unknown') . "\n";
+        $output .= "Message: " . ($content['message'] ?? 'No message') . "\n";
+        $output .= "File: " . ($content['file'] ?? 'Unknown') . "\n";
+        $output .= "Line: " . ($content['line'] ?? 'Unknown') . "\n";
 
         $output .= "Occurred At: {$createdAt}\n\n";
 
@@ -219,11 +218,11 @@ class ExceptionsTool extends Tool
             $output .= "Stack Trace:\n";
 
             foreach ($content['trace'] as $index => $frame) {
-                $file = isset($frame['file']) ? $frame['file'] : 'Unknown';
-                $line = isset($frame['line']) ? $frame['line'] : 'Unknown';
-                $function = isset($frame['function']) ? $frame['function'] : 'Unknown';
-                $class = isset($frame['class']) ? $frame['class'] : '';
-                $type = isset($frame['type']) ? $frame['type'] : '';
+                $file = $frame['file'] ?? 'Unknown';
+                $line = $frame['line'] ?? 'Unknown';
+                $function = $frame['function'] ?? 'Unknown';
+                $class = $frame['class'] ?? '';
+                $type = $frame['type'] ?? '';
 
                 $output .= sprintf(
                     "#%d %s%s%s() at %s:%s\n",
@@ -250,7 +249,7 @@ class ExceptionsTool extends Tool
             'line' => $content['line'] ?? 'Unknown',
             'occurred_at' => $createdAt,
             'trace' => $content['trace'] ?? [],
-            'context' => $content['context'] ?? []
+            'context' => $content['context'] ?? [],
         ], JSON_PRETTY_PRINT);
 
         return Response::text($combinedText);

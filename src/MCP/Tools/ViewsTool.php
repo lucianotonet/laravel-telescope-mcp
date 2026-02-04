@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -57,7 +56,9 @@ class ViewsTool extends Tool
         $options->limit($limit);
 
         $entries = $repository->get(EntryType::VIEW, $options);
-        if (empty($entries)) return Response::text("No view renderings found.");
+        if (empty($entries)) {
+            return Response::text("No view renderings found.");
+        }
 
         $views = [];
         foreach ($entries as $entry) {
@@ -66,7 +67,7 @@ class ViewsTool extends Tool
                 'id' => $entry->id,
                 'name' => $content['name'] ?? 'Unknown',
                 'path' => $content['path'] ?? 'Unknown',
-                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown'
+                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown',
             ];
         }
 
@@ -78,8 +79,13 @@ class ViewsTool extends Tool
             $name = strlen($view['name']) > 30 ? substr($view['name'], 0, 27) . "..." : $view['name'];
             $path = strlen($view['path']) > 50 ? substr($view['path'], 0, 47) . "..." : $view['path'];
 
-            $table .= sprintf("%-5s %-30s %-50s %-20s\n",
-                $view['id'], $name, $path, $view['created_at']);
+            $table .= sprintf(
+                "%-5s %-30s %-50s %-20s\n",
+                $view['id'],
+                $name,
+                $path,
+                $view['created_at']
+            );
         }
 
         $table .= "\n\n--- JSON Data ---\n" . json_encode(['total' => count($views), 'views' => $views], JSON_PRETTY_PRINT);
@@ -108,7 +114,7 @@ class ViewsTool extends Tool
                 'id' => $entry->id,
                 'name' => $content['name'] ?? 'Unknown',
                 'path' => $content['path'] ?? 'Unknown',
-                'created_at' => isset($entry->createdAt) ? DateFormatter::format($entry->createdAt) : 'Unknown'
+                'created_at' => isset($entry->createdAt) ? DateFormatter::format($entry->createdAt) : 'Unknown',
             ];
         }
 
@@ -122,15 +128,20 @@ class ViewsTool extends Tool
             $name = strlen($view['name']) > 30 ? substr($view['name'], 0, 27) . "..." : $view['name'];
             $path = strlen($view['path']) > 50 ? substr($view['path'], 0, 47) . "..." : $view['path'];
 
-            $table .= sprintf("%-5s %-30s %-50s %-20s\n",
-                $view['id'], $name, $path, $view['created_at']);
+            $table .= sprintf(
+                "%-5s %-30s %-50s %-20s\n",
+                $view['id'],
+                $name,
+                $path,
+                $view['created_at']
+            );
         }
 
         $table .= "\n\n--- JSON Data ---\n" . json_encode([
             'request_id' => $requestId,
             'batch_id' => $batchId,
             'total' => count($views),
-            'views' => $views
+            'views' => $views,
         ], JSON_PRETTY_PRINT);
 
         return Response::text($table);
@@ -139,7 +150,9 @@ class ViewsTool extends Tool
     protected function getViewDetails(string $id, EntriesRepository $repository): Response
     {
         $entry = $repository->find($id);
-        if (!$entry) return Response::error("View rendering not found: {$id}");
+        if (!$entry) {
+            return Response::error("View rendering not found: {$id}");
+        }
 
         $content = is_array($entry->content) ? $entry->content : [];
         $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
@@ -163,7 +176,7 @@ class ViewsTool extends Tool
             'name' => $content['name'] ?? 'Unknown',
             'path' => $content['path'] ?? 'Unknown',
             'created_at' => $createdAt,
-            'data' => $content['data'] ?? []
+            'data' => $content['data'] ?? [],
         ];
 
         $output .= "\n\n--- JSON Data ---\n" . json_encode($jsonData, JSON_PRETTY_PRINT);

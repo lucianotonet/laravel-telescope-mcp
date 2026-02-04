@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -55,12 +54,20 @@ class RequestsTool extends Tool
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        if ($method = $request->get('method')) $options->tag('method:' . strtoupper($method));
-        if ($status = $request->get('status')) $options->tag('status:' . $status);
-        if ($path = $request->get('path')) $options->tag('path:' . $path);
+        if ($method = $request->get('method')) {
+            $options->tag('method:' . strtoupper($method));
+        }
+        if ($status = $request->get('status')) {
+            $options->tag('status:' . $status);
+        }
+        if ($path = $request->get('path')) {
+            $options->tag('path:' . $path);
+        }
 
         $entries = $repository->get(EntryType::REQUEST, $options);
-        if (empty($entries)) return Response::text("No requests found.");
+        if (empty($entries)) {
+            return Response::text("No requests found.");
+        }
 
         $requests = [];
         foreach ($entries as $entry) {
@@ -71,7 +78,7 @@ class RequestsTool extends Tool
                 'uri' => $content['uri'] ?? 'Unknown',
                 'status' => $content['response_status'] ?? 0,
                 'duration' => $content['duration'] ?? 0,
-                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown'
+                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown',
             ];
         }
 
@@ -82,12 +89,21 @@ class RequestsTool extends Tool
         foreach ($requests as $req) {
             $uri = strlen($req['uri']) > 50 ? substr($req['uri'], 0, 47) . "..." : $req['uri'];
             $statusStr = sprintf("%d", $req['status']);
-            if ($req['status'] >= 500) $statusStr .= " [E]";
-            elseif ($req['status'] >= 400) $statusStr .= " [W]";
+            if ($req['status'] >= 500) {
+                $statusStr .= " [E]";
+            } elseif ($req['status'] >= 400) {
+                $statusStr .= " [W]";
+            }
 
-            $table .= sprintf("%-5s %-7s %-50s %-7s %-10s %-20s\n",
-                $req['id'], $req['method'], $uri, $statusStr,
-                number_format($req['duration'], 2), $req['created_at']);
+            $table .= sprintf(
+                "%-5s %-7s %-50s %-7s %-10s %-20s\n",
+                $req['id'],
+                $req['method'],
+                $uri,
+                $statusStr,
+                number_format($req['duration'], 2),
+                $req['created_at']
+            );
         }
 
         $table .= "\n\n--- JSON Data ---\n" . json_encode(['total' => count($requests), 'requests' => $requests], JSON_PRETTY_PRINT);
@@ -97,7 +113,9 @@ class RequestsTool extends Tool
     protected function getRequestDetails(string $id, bool $includeRelated, EntriesRepository $repository): Response
     {
         $entry = $repository->find($id);
-        if (!$entry) return Response::error("Request not found: {$id}");
+        if (!$entry) {
+            return Response::error("Request not found: {$id}");
+        }
 
         $content = is_array($entry->content) ? $entry->content : [];
         $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
@@ -138,7 +156,7 @@ class RequestsTool extends Tool
         if (!empty($content['headers'])) {
             $output .= "Request Headers:\n";
             foreach ($content['headers'] as $name => $values) {
-                $output .= "- {$name}: " . implode(", ", (array)$values) . "\n";
+                $output .= "- {$name}: " . implode(", ", (array) $values) . "\n";
             }
             $output .= "\n";
         }
@@ -156,7 +174,9 @@ class RequestsTool extends Tool
             'duration' => $content['duration'] ?? 0,
             'created_at' => $createdAt,
         ];
-        if (!empty($relatedSummary)) $jsonData['related_entries'] = $relatedSummary;
+        if (!empty($relatedSummary)) {
+            $jsonData['related_entries'] = $relatedSummary;
+        }
 
         $output .= "\n\n--- JSON Data ---\n" . json_encode($jsonData, JSON_PRETTY_PRINT);
         return Response::text($output);

@@ -27,11 +27,11 @@ class TelescopeMcpServiceProvider extends ServiceProvider
 
         if ($this->app->runningInConsole()) {
             $this->publishes([
-                __DIR__.'/../config/telescope-mcp.php' => config_path('telescope-mcp.php'),
+                __DIR__ . '/../config/telescope-mcp.php' => config_path('telescope-mcp.php'),
             ], 'telescope-mcp-config');
 
             $this->publishes([
-                __DIR__.'/../routes/ai.php' => base_path('routes/ai.php'),
+                __DIR__ . '/../routes/ai.php' => base_path('routes/ai.php'),
             ], 'telescope-mcp-ai-routes');
 
             $this->commands([
@@ -63,7 +63,8 @@ class TelescopeMcpServiceProvider extends ServiceProvider
     public function register()
     {
         $this->mergeConfigFrom(
-            __DIR__.'/../config/telescope-mcp.php', 'telescope-mcp'
+            __DIR__ . '/../config/telescope-mcp.php',
+            'telescope-mcp'
         );
     }
 
@@ -74,8 +75,8 @@ class TelescopeMcpServiceProvider extends ServiceProvider
     {
         // Load AI routes from routes/ai.php
         // This will register the MCP server using Laravel\Mcp\Facades\Mcp
-        if (file_exists(__DIR__.'/../routes/ai.php')) {
-            $this->loadRoutesFrom(__DIR__.'/../routes/ai.php');
+        if (file_exists(__DIR__ . '/../routes/ai.php')) {
+            $this->loadRoutesFrom(__DIR__ . '/../routes/ai.php');
         }
     }
 
@@ -88,20 +89,20 @@ class TelescopeMcpServiceProvider extends ServiceProvider
     {
         Route::group([
             'prefix' => config('telescope-mcp.path', 'telescope-mcp') . '-legacy',
-            'middleware' => config('telescope-mcp.middleware', ['web'])
+            'middleware' => config('telescope-mcp.middleware', ['web']),
         ], function () {
-            if (file_exists(__DIR__.'/../routes/api.php')) {
-                $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
+            if (file_exists(__DIR__ . '/../routes/api.php')) {
+                $this->loadRoutesFrom(__DIR__ . '/../routes/api.php');
             }
         });
     }
-    
+
     protected function configureLogging()
     {
         // Inicializar logger
         Logger::getInstance();
     }
-    
+
     protected function registerTestRoute()
     {
         Route::get('/telescope-mcp-test', function () {
@@ -109,4 +110,4 @@ class TelescopeMcpServiceProvider extends ServiceProvider
             return response()->json(['message' => 'Teste do Telescope MCP']);
         });
     }
-} 
+}

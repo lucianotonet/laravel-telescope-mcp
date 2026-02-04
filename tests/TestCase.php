@@ -49,11 +49,11 @@ abstract class TestCase extends BaseTestCase
         // Ensure log directory exists
         $logDir = dirname(storage_path('logs/telescope-mcp-test.log'));
         if (!is_dir($logDir)) {
-            mkdir($logDir, 0755, true);
+            mkdir($logDir, 0o755, true);
         }
 
         // Set application key for encryption
-        $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
+        $app['config']->set('app.key', 'base64:' . base64_encode(random_bytes(32)));
     }
 
     protected function defineRoutes($router)
@@ -63,4 +63,4 @@ abstract class TestCase extends BaseTestCase
             abort(404);
         });
     }
-} 
+}

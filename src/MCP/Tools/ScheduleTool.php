@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -48,7 +47,9 @@ class ScheduleTool extends Tool
         $options->limit($limit);
 
         $entries = $repository->get(EntryType::SCHEDULED_TASK, $options);
-        if (empty($entries)) return Response::text("No scheduled tasks found.");
+        if (empty($entries)) {
+            return Response::text("No scheduled tasks found.");
+        }
 
         $tasks = [];
         foreach ($entries as $entry) {
@@ -62,22 +63,35 @@ class ScheduleTool extends Tool
                 'expression' => $content['expression'] ?? 'Unknown',
                 'description' => $content['description'] ?? '',
                 'status' => $status,
-                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown'
+                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown',
             ];
         }
 
         $table = "Scheduled Tasks:\n\n";
-        $table .= sprintf("%-5s %-30s %-15s %-30s %-10s %-20s\n",
-            "ID", "Command", "Expression", "Description", "Status", "Created At");
+        $table .= sprintf(
+            "%-5s %-30s %-15s %-30s %-10s %-20s\n",
+            "ID",
+            "Command",
+            "Expression",
+            "Description",
+            "Status",
+            "Created At"
+        );
         $table .= str_repeat("-", 120) . "\n";
 
         foreach ($tasks as $task) {
             $command = strlen($task['command']) > 30 ? substr($task['command'], 0, 27) . "..." : $task['command'];
             $description = strlen($task['description']) > 30 ? substr($task['description'], 0, 27) . "..." : $task['description'];
 
-            $table .= sprintf("%-5s %-30s %-15s %-30s %-10s %-20s\n",
-                $task['id'], $command, $task['expression'], $description,
-                $task['status'], $task['created_at']);
+            $table .= sprintf(
+                "%-5s %-30s %-15s %-30s %-10s %-20s\n",
+                $task['id'],
+                $command,
+                $task['expression'],
+                $description,
+                $task['status'],
+                $task['created_at']
+            );
         }
 
         $table .= "\n\n--- JSON Data ---\n" . json_encode(['total' => count($tasks), 'tasks' => $tasks], JSON_PRETTY_PRINT);
@@ -87,7 +101,9 @@ class ScheduleTool extends Tool
     protected function getScheduleDetails(string $id, EntriesRepository $repository): Response
     {
         $entry = $repository->find($id);
-        if (!$entry) return Response::error("Scheduled task not found: {$id}");
+        if (!$entry) {
+            return Response::error("Scheduled task not found: {$id}");
+        }
 
         $content = is_array($entry->content) ? $entry->content : [];
         $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';

@@ -32,12 +32,12 @@ class TelescopeMcpServer
     protected $entriesRepository;
     protected $tools;
     protected $manifest;
-    
+
     public function __construct(EntriesRepository $entriesRepository)
     {
         $this->entriesRepository = $entriesRepository;
         $this->tools = new Collection();
-        
+
         // Register existing tools
         $this->registerTool(new RequestsTool($entriesRepository));
         $this->registerTool(new LogsTool($entriesRepository));
@@ -65,10 +65,10 @@ class TelescopeMcpServer
 
         $this->buildManifest();
     }
-    
+
     /**
      * Registers a tool in the MCP server
-     * 
+     *
      * @param object $tool
      * @return void
      */
@@ -76,14 +76,14 @@ class TelescopeMcpServer
     {
         // Use the name returned by getName() (now the short name)
         $toolName = $tool->getName();
-        
+
         // Add to collection
         $this->tools->put($toolName, $tool);
     }
-    
+
     /**
      * Checks if a tool is registered
-     * 
+     *
      * @param string $toolName
      * @return bool
      */
@@ -92,10 +92,10 @@ class TelescopeMcpServer
         // Search by short name
         return $this->tools->has($toolName);
     }
-    
+
     /**
      * Gets a tool by name
-     * 
+     *
      * @param string $toolName
      * @return object|null
      */
@@ -104,14 +104,14 @@ class TelescopeMcpServer
         // Search by short name
         return $this->tools->get($toolName);
     }
-    
+
     /**
      * Builds the MCP server manifest
      */
     protected function buildManifest()
     {
         // Format tools to match MCP client expectations
-        $toolsFormatted = (object)[];
+        $toolsFormatted = (object) [];
         foreach ($this->tools as $name => $tool) {
             $schema = $tool->getSchema();
             // The 'name' in schema will come from $tool->getName(), which is the short name
@@ -121,20 +121,20 @@ class TelescopeMcpServer
                 'inputSchema' => [
                     'type' => 'object',
                     'properties' => $schema['parameters']['properties'] ?? [],
-                    'required' => $schema['parameters']['required'] ?? []
+                    'required' => $schema['parameters']['required'] ?? [],
                 ],
 
             ];
         }
-        
+
         $this->manifest = [
             'name' => 'Laravel Telescope MCP',
             'version' => '1.0.0',
             'description' => 'Laravel Telescope Model Context Provider',
-            'tools' => $toolsFormatted
+            'tools' => $toolsFormatted,
         ];
     }
-    
+
     /**
      * Returns the MCP server manifest
      */
@@ -142,7 +142,7 @@ class TelescopeMcpServer
     {
         return $this->manifest;
     }
-    
+
     /**
      * Executes a tool with the provided arguments
      *
@@ -155,33 +155,33 @@ class TelescopeMcpServer
     {
         Logger::info('Executing tool', [
             'tool' => $toolName, // toolName is already the short name
-            'arguments' => $arguments
+            'arguments' => $arguments,
         ]);
-        
+
         try {
             // Check if tool exists using short name
             if (!$this->hasTool($toolName)) {
                 throw new \Exception("Tool not found: {$toolName}");
             }
-            
+
             // Execute the tool
             $tool = $this->getTool($toolName);
             $result = $tool->execute($arguments);
-            
+
             Logger::info('Tool execution successful', [
                 'tool' => $toolName,
-                'result' => $result
+                'result' => $result,
             ]);
-            
+
             // Ensure result is in the format expected by MCP
             if (!isset($result['content']) || !is_array($result['content'])) {
                 $result = [
                     'content' => [
                         [
                             'type' => 'text',
-                            'text' => is_string($result) ? $result : json_encode($result, JSON_PRETTY_PRINT)
-                        ]
-                    ]
+                            'text' => is_string($result) ? $result : json_encode($result, JSON_PRETTY_PRINT),
+                        ],
+                    ],
                 ];
             } else {
                 // Validate and normalize content format
@@ -190,32 +190,32 @@ class TelescopeMcpServer
                     if (is_array($item) && isset($item['type']) && isset($item['text'])) {
                         $validatedContent[] = [
                             'type' => (string) $item['type'],
-                            'text' => (string) $item['text']
+                            'text' => (string) $item['text'],
                         ];
                     }
                 }
-                
+
                 if (empty($validatedContent)) {
                     $validatedContent = [
                         [
                             'type' => 'text',
-                            'text' => 'No valid content returned'
-                        ]
+                            'text' => 'No valid content returned',
+                        ],
                     ];
                 }
-                
+
                 $result['content'] = $validatedContent;
             }
-            
+
             return $result;
-            
+
         } catch (\Exception $e) {
             Log::error('Tool execution error', [
                 'tool' => $toolName,
                 'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
+                'trace' => $e->getTraceAsString(),
             ]);
-            
+
             throw $e;
         }
     }

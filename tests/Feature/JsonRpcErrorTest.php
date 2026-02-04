@@ -13,7 +13,7 @@ class JsonRpcErrorTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        
+
         $this->withHeaders([
             'Accept' => 'application/json',
             // Content-Type for this specific test will be set in the call method
@@ -44,7 +44,7 @@ class JsonRpcErrorTest extends TestCase
                     'code' => JsonRpcResponse::PARSE_ERROR,
                     // 'message' => 'Parse error: Invalid JSON' // Mensagem pode variar
                 ],
-                'id' => null
+                'id' => null,
             ])
             ->assertJsonPath('error.message', function (string $message) {
                 return str_starts_with($message, 'Parse error: Invalid JSON in request body. Error:');
@@ -58,7 +58,7 @@ class JsonRpcErrorTest extends TestCase
             'jsonrpc' => '1.0',
             'method' => 'tools/call',
             'params' => [],
-            'id' => 1
+            'id' => 1,
         ]);
 
         $response->assertStatus(400)
@@ -66,9 +66,9 @@ class JsonRpcErrorTest extends TestCase
                 'jsonrpc' => '2.0',
                 'error' => [
                     'code' => JsonRpcResponse::INVALID_REQUEST,
-                    'message' => "Invalid JSON-RPC version. Must be '2.0'."
+                    'message' => "Invalid JSON-RPC version. Must be '2.0'.",
                 ],
-                'id' => 1
+                'id' => 1,
             ]);
     }
 
@@ -79,7 +79,7 @@ class JsonRpcErrorTest extends TestCase
             'jsonrpc' => '2.0',
             'method' => 'invalid_method',
             'params' => [],
-            'id' => 1
+            'id' => 1,
         ]);
 
         $response->assertStatus(400)
@@ -87,9 +87,9 @@ class JsonRpcErrorTest extends TestCase
                 'jsonrpc' => '2.0',
                 'error' => [
                     'code' => JsonRpcResponse::METHOD_NOT_FOUND,
-                    'message' => 'Method not found: invalid_method'
+                    'message' => 'Method not found: invalid_method',
                 ],
-                'id' => 1
+                'id' => 1,
             ]);
     }
 
@@ -100,7 +100,7 @@ class JsonRpcErrorTest extends TestCase
             'jsonrpc' => '2.0',
             'method' => 'tools/call',
             'params' => [], // This should trigger invalid params for missing tool name
-            'id' => 1
+            'id' => 1,
         ]);
 
         $response->assertStatus(400)
@@ -108,9 +108,9 @@ class JsonRpcErrorTest extends TestCase
                 'jsonrpc' => '2.0',
                 'error' => [
                     'code' => JsonRpcResponse::INVALID_PARAMS,
-                    'message' => 'Invalid params: tool name is required and must be a string.'
+                    'message' => 'Invalid params: tool name is required and must be a string.',
                 ],
-                'id' => 1
+                'id' => 1,
             ]);
     }
 
@@ -122,9 +122,9 @@ class JsonRpcErrorTest extends TestCase
             'method' => 'tools/call',
             'params' => [
                 'name' => 'nonexistent_tool',
-                'arguments' => []
+                'arguments' => [],
             ],
-            'id' => 1
+            'id' => 1,
         ]);
 
         $response->assertStatus(500)
@@ -132,9 +132,9 @@ class JsonRpcErrorTest extends TestCase
                 'jsonrpc' => '2.0',
                 'error' => [
                     'code' => JsonRpcResponse::INTERNAL_ERROR,
-                    'message' => 'Tool not found: nonexistent_tool'
+                    'message' => 'Tool not found: nonexistent_tool',
                 ],
-                'id' => 1
+                'id' => 1,
             ]);
     }
 
@@ -145,7 +145,7 @@ class JsonRpcErrorTest extends TestCase
             'jsonrpc' => '2.0',
             'method' => 'mcp.manifest',
             'params' => [],
-            'id' => 1
+            'id' => 1,
         ]);
 
         $response->assertStatus(200)
@@ -156,17 +156,17 @@ class JsonRpcErrorTest extends TestCase
                     'serverInfo' => [
                         'name',
                         'version',
-                        'description'
+                        'description',
                     ],
                     'capabilities' => [
-                        'tools'
-                    ]
+                        'tools',
+                    ],
                 ],
-                'id'
+                'id',
             ])
             ->assertJson([
                 'jsonrpc' => '2.0',
-                'id' => 1
+                'id' => 1,
             ]);
     }
-} 
+}

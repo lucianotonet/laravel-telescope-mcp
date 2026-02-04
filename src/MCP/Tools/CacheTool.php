@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -55,11 +54,17 @@ class CacheTool extends Tool
         $limit = min($request->integer('limit', 50), 100);
         $options = new EntryQueryOptions($limit);
 
-        if ($operation = $request->get('operation')) $options->tag('operation:' . strtolower($operation));
-        if ($key = $request->get('key')) $options->tag('key:' . $key);
+        if ($operation = $request->get('operation')) {
+            $options->tag('operation:' . strtolower($operation));
+        }
+        if ($key = $request->get('key')) {
+            $options->tag('key:' . $key);
+        }
 
         $entries = $repository->get(EntryType::CACHE, $options);
-        if (empty($entries)) return Response::text("No cache operations found.");
+        if (empty($entries)) {
+            return Response::text("No cache operations found.");
+        }
 
         $operations = [];
         foreach ($entries as $entry) {
@@ -71,13 +76,19 @@ class CacheTool extends Tool
                 'operation' => $content['type'] ?? 'Unknown',
                 'key' => $content['key'] ?? 'Unknown',
                 'duration' => $content['duration'] ?? 0,
-                'created_at' => $createdAt
+                'created_at' => $createdAt,
             ];
         }
 
         $table = "Cache Operations:\n\n";
-        $table .= sprintf("%-5s %-8s %-50s %-10s %-20s\n",
-            "ID", "Type", "Key", "Time (ms)", "Created At");
+        $table .= sprintf(
+            "%-5s %-8s %-50s %-10s %-20s\n",
+            "ID",
+            "Type",
+            "Key",
+            "Time (ms)",
+            "Created At"
+        );
         $table .= str_repeat("-", 100) . "\n";
 
         foreach ($operations as $op) {
@@ -86,7 +97,8 @@ class CacheTool extends Tool
                 $key = substr($key, 0, 47) . "...";
             }
 
-            $table .= sprintf("%-5s %-8s %-50s %-10.2f %-20s\n",
+            $table .= sprintf(
+                "%-5s %-8s %-50s %-10.2f %-20s\n",
                 $op['id'],
                 $op['operation'],
                 $key,
@@ -97,7 +109,7 @@ class CacheTool extends Tool
 
         $combinedText = $table . "\n\n--- JSON Data ---\n" . json_encode([
             'total' => count($operations),
-            'operations' => $operations
+            'operations' => $operations,
         ], JSON_PRETTY_PRINT);
 
         return Response::text($combinedText);
@@ -134,7 +146,7 @@ class CacheTool extends Tool
                 'operation' => $operation,
                 'key' => $content['key'] ?? 'Unknown',
                 'duration' => $content['duration'] ?? 0,
-                'created_at' => $createdAt
+                'created_at' => $createdAt,
             ];
         }
 
@@ -150,7 +162,8 @@ class CacheTool extends Tool
                 $key = substr($key, 0, 47) . "...";
             }
 
-            $table .= sprintf("%-5s %-8s %-50s %-10.2f %-20s\n",
+            $table .= sprintf(
+                "%-5s %-8s %-50s %-10.2f %-20s\n",
                 $op['id'],
                 $op['operation'],
                 $key,
@@ -163,7 +176,7 @@ class CacheTool extends Tool
             'request_id' => $requestId,
             'batch_id' => $batchId,
             'total' => count($operations),
-            'operations' => $operations
+            'operations' => $operations,
         ], JSON_PRETTY_PRINT);
 
         return Response::text($combinedText);
@@ -172,7 +185,9 @@ class CacheTool extends Tool
     protected function getCacheDetails(string $id, EntriesRepository $repository): Response
     {
         $entry = $repository->find($id);
-        if (!$entry) return Response::error("Cache operation not found: {$id}");
+        if (!$entry) {
+            return Response::error("Cache operation not found: {$id}");
+        }
 
         $content = is_array($entry->content) ? $entry->content : [];
 
@@ -200,7 +215,7 @@ class CacheTool extends Tool
             'key' => $content['key'] ?? 'Unknown',
             'duration' => $content['duration'] ?? 0,
             'created_at' => $createdAt,
-            'value' => $content['value'] ?? null
+            'value' => $content['value'] ?? null,
         ], JSON_PRETTY_PRINT);
 
         return Response::text($combinedText);
@@ -209,7 +224,7 @@ class CacheTool extends Tool
     protected function safeString($value): string
     {
         if (!is_string($value)) {
-            return (string)$value;
+            return (string) $value;
         }
         return $value;
     }

@@ -6,7 +6,6 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -50,12 +49,20 @@ class HttpClientTool extends Tool
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        if ($method = $request->get('method')) $options->tag($method);
-        if ($status = $request->get('status')) $options->tag((string)$status);
-        if ($url = $request->get('url')) $options->tag($url);
+        if ($method = $request->get('method')) {
+            $options->tag($method);
+        }
+        if ($status = $request->get('status')) {
+            $options->tag((string) $status);
+        }
+        if ($url = $request->get('url')) {
+            $options->tag($url);
+        }
 
         $entries = $repository->get(EntryType::CLIENT_REQUEST, $options);
-        if (empty($entries)) return Response::text("No HTTP client requests found.");
+        if (empty($entries)) {
+            return Response::text("No HTTP client requests found.");
+        }
 
         $requests = [];
         foreach ($entries as $entry) {
@@ -66,7 +73,7 @@ class HttpClientTool extends Tool
                 'url' => $content['uri'] ?? 'Unknown',
                 'status' => $content['response_status'] ?? 0,
                 'duration' => isset($content['duration']) ? round($content['duration'] / 1000, 2) : 0,
-                'created_at' => DateFormatter::format($entry->createdAt)
+                'created_at' => DateFormatter::format($entry->createdAt),
             ];
         }
 
@@ -76,8 +83,15 @@ class HttpClientTool extends Tool
 
         foreach ($requests as $req) {
             $url = strlen($req['url']) > 50 ? substr($req['url'], 0, 47) . "..." : $req['url'];
-            $table .= sprintf("%-5s %-6s %-50s %-7s %-8s %-20s\n",
-                $req['id'], $req['method'], $url, $req['status'], $req['duration'], $req['created_at']);
+            $table .= sprintf(
+                "%-5s %-6s %-50s %-7s %-8s %-20s\n",
+                $req['id'],
+                $req['method'],
+                $url,
+                $req['status'],
+                $req['duration'],
+                $req['created_at']
+            );
         }
 
         $table .= "\n\n--- JSON Data ---\n" . json_encode(['total' => count($requests), 'requests' => $requests], JSON_PRETTY_PRINT);
@@ -87,7 +101,9 @@ class HttpClientTool extends Tool
     protected function getRequestDetails(string $id, EntriesRepository $repository): Response
     {
         $entry = $repository->find($id);
-        if (!$entry) return Response::error("HTTP client request not found: {$id}");
+        if (!$entry) {
+            return Response::error("HTTP client request not found: {$id}");
+        }
 
         $content = is_array($entry->content) ? $entry->content : [];
         $createdAt = DateFormatter::format($entry->createdAt);
@@ -103,7 +119,7 @@ class HttpClientTool extends Tool
         if (isset($content['headers']) && !empty($content['headers'])) {
             $output .= "Request Headers:\n";
             foreach ($content['headers'] as $name => $values) {
-                $output .= "- {$name}: " . implode(', ', (array)$values) . "\n";
+                $output .= "- {$name}: " . implode(', ', (array) $values) . "\n";
             }
             $output .= "\n";
         }
@@ -115,7 +131,7 @@ class HttpClientTool extends Tool
         if (isset($content['response_headers']) && !empty($content['response_headers'])) {
             $output .= "Response Headers:\n";
             foreach ($content['response_headers'] as $name => $values) {
-                $output .= "- {$name}: " . implode(', ', (array)$values) . "\n";
+                $output .= "- {$name}: " . implode(', ', (array) $values) . "\n";
             }
             $output .= "\n";
         }
@@ -136,4 +152,4 @@ class HttpClientTool extends Tool
         $output .= "\n\n--- JSON Data ---\n" . json_encode($jsonData, JSON_PRETTY_PRINT);
         return Response::text($output);
     }
-} 
+}
