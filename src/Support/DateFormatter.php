@@ -6,7 +6,7 @@ class DateFormatter
 {
     /**
      * Format a date value to a consistent format
-     * 
+     *
      * @param mixed $date The date value to format (string, DateTime, or null)
      * @param string $format The desired format (default: Y-m-d H:i:s)
      * @param string $default The default value if date is invalid (default: Unknown)
@@ -30,10 +30,10 @@ class DateFormatter
         } catch (\Exception $e) {
             Logger::warning('Failed to parse date', [
                 'date' => $date,
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ]);
         }
 
         return $default;
     }
-} 
+}

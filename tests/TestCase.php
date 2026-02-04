@@ -2,13 +2,57 @@
 
 namespace Tests;
 
-use Orchestra\Testbench\TestCase as BaseTestCase;
-use LucianoTonet\TelescopeMcp\TelescopeMcpServiceProvider;
+use Illuminate\Contracts\Console\Kernel as ConsoleKernelContract;
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Telescope\TelescopeServiceProvider;
+use LucianoTonet\TelescopeMcp\TelescopeMcpServiceProvider;
+use Orchestra\Testbench\TestCase as Orchestra;
 
-abstract class TestCase extends BaseTestCase
+abstract class TestCase extends Orchestra
 {
-    protected function getPackageProviders($app)
+    use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+    }
+
+    /**
+     * Force using default application resolution so Console Kernel is always registered.
+     * When the bootstrap file is used, Testbench skips kernel registration and artisan() fails.
+     */
+    protected function getApplicationBootstrapFile(string $filename): string|false
+    {
+        return false;
+    }
+
+    /**
+     * @return Application
+     */
+    public function createApplication()
+    {
+        $app = parent::createApplication();
+        $this->ensureConsoleKernelBound($app);
+        return $app;
+    }
+
+    protected function refreshApplication()
+    {
+        parent::refreshApplication();
+        if ($this->app) {
+            $this->ensureConsoleKernelBound($this->app);
+        }
+    }
+
+    private function ensureConsoleKernelBound($app): void
+    {
+        if (!$app->bound(ConsoleKernelContract::class)) {
+            $app->singleton(ConsoleKernelContract::class, \Orchestra\Testbench\Console\Kernel::class);
+        }
+    }
+
+    protected function getPackageProviders($app): array
     {
         return [
             TelescopeServiceProvider::class,
@@ -16,51 +60,35 @@ abstract class TestCase extends BaseTestCase
         ];
     }
 
-    protected function defineEnvironment($app)
+    protected function getEnvironmentSetUp($app): void
     {
-        // Setup default database to use sqlite :memory:
         $app['config']->set('database.default', 'testbench');
         $app['config']->set('database.connections.testbench', [
-            'driver'   => 'sqlite',
+            'driver' => 'sqlite',
             'database' => ':memory:',
-            'prefix'   => '',
+            'prefix' => '',
         ]);
 
-        // Configure Telescope MCP
-        $app['config']->set('telescope-mcp', [
-            'enabled' => true,
-            'path' => 'telescope-mcp',
-            'middleware' => ['web'],
-            'logging' => [
-                'enabled' => true,
-                'level' => 'debug',
-                'path' => storage_path('logs/telescope-mcp-test.log'),
-                'channel' => 'stack',
-            ],
-        ]);
-
-        // Configure Telescope
-        $app['config']->set('telescope.enabled', true);
-        $app['config']->set('telescope.storage.driver', 'database');
         $app['config']->set('telescope.storage.database.connection', 'testbench');
-        // Prevent Telescope from attempting to migrate in every test after the first run with RefreshDatabase
-        $app['config']->set('telescope.migrations', false);
+        $app['config']->set('telescope.enabled', true);
 
-        // Ensure log directory exists
-        $logDir = dirname(storage_path('logs/telescope-mcp-test.log'));
-        if (!is_dir($logDir)) {
-            mkdir($logDir, 0755, true);
-        }
-
-        // Set application key for encryption
-        $app['config']->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
+        $app['config']->set('telescope-mcp.enabled', true);
+        $app['config']->set('telescope-mcp.logging.enabled', false);
     }
 
-    protected function defineRoutes($router)
+    protected function defineDatabaseMigrations(): void
     {
-        // Define any additional routes needed for testing
-        $router->get('/test-route', function () {
-            abort(404);
-        });
+        $telescopePath = base_path('vendor/laravel/telescope/database/migrations');
+        if (is_dir($telescopePath)) {
+            $this->loadMigrationsFrom($telescopePath);
+        }
     }
-} 
+
+    protected function afterRefreshingDatabase(): void
+    {
+        $this->artisan('migrate', [
+            '--database' => 'testbench',
+            '--path' => 'vendor/laravel/telescope/database/migrations',
+        ]);
+    }
+}

@@ -5,29 +5,44 @@ namespace LucianoTonet\TelescopeMcp;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use LucianoTonet\TelescopeMcp\Console\ConnectMcpCommand;
+use LucianoTonet\TelescopeMcp\Console\InstallMcpCommand;
+use LucianoTonet\TelescopeMcp\Console\McpServerCommand;
 use LucianoTonet\TelescopeMcp\Support\Logger;
 
 class TelescopeMcpServiceProvider extends ServiceProvider
 {
     public function boot()
     {
-        $this->registerRoutes();
+        // Register Laravel/MCP AI routes
+        $this->registerMcpRoutes();
+
+        // Register as Local Server for stdio support (mcp:start, mcp:inspector)
+        \Laravel\Mcp\Facades\Mcp::local(
+            config('telescope-mcp.path', 'telescope-mcp'),
+            \LucianoTonet\TelescopeMcp\Mcp\Servers\TelescopeServer::class
+        );
 
         if ($this->app->runningInConsole()) {
             $this->publishes([
-                __DIR__.'/../config/telescope-mcp.php' => config_path('telescope-mcp.php'),
+                __DIR__ . '/../config/telescope-mcp.php' => config_path('telescope-mcp.php'),
             ], 'telescope-mcp-config');
-            
+
+            $this->publishes([
+                __DIR__ . '/../routes/ai.php' => base_path('routes/ai.php'),
+            ], 'telescope-mcp-ai-routes');
+
             $this->commands([
                 ConnectMcpCommand::class,
+                InstallMcpCommand::class,
+                McpServerCommand::class,
             ]);
 
             $this->checkLaravelBoost();
         }
-        
+
         // Configurar logger
         $this->configureLogging();
-        
+
         // Registrar rota de teste para gerar entradas no Telescope
         $this->registerTestRoute();
     }
@@ -45,26 +60,29 @@ class TelescopeMcpServiceProvider extends ServiceProvider
     public function register()
     {
         $this->mergeConfigFrom(
-            __DIR__.'/../config/telescope-mcp.php', 'telescope-mcp'
+            __DIR__ . '/../config/telescope-mcp.php',
+            'telescope-mcp'
         );
     }
 
-    protected function registerRoutes()
+    /**
+     * Register Laravel/MCP routes
+     */
+    protected function registerMcpRoutes()
     {
-        Route::group([
-            'prefix' => config('telescope-mcp.path', 'telescope-mcp'),
-            'middleware' => config('telescope-mcp.middleware', ['web'])
-        ], function () {
-            $this->loadRoutesFrom(__DIR__.'/../routes/api.php');
-        });
+        // Load AI routes from routes/ai.php
+        // This will register the MCP server using Laravel\Mcp\Facades\Mcp
+        if (file_exists(__DIR__ . '/../routes/ai.php')) {
+            $this->loadRoutesFrom(__DIR__ . '/../routes/ai.php');
+        }
     }
-    
+
     protected function configureLogging()
     {
         // Inicializar logger
         Logger::getInstance();
     }
-    
+
     protected function registerTestRoute()
     {
         Route::get('/telescope-mcp-test', function () {
@@ -72,4 +90,4 @@ class TelescopeMcpServiceProvider extends ServiceProvider
             return response()->json(['message' => 'Teste do Telescope MCP']);
         });
     }
-} 
+}
