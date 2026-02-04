@@ -1,15 +1,23 @@
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/lucianotonet/laravel-telescope-mcp.svg)](https://packagist.org/packages/lucianotonet/laravel-telescope-mcp)
-[![Downloads](https://img.shields.io/packagist/dt/lucianotonet/laravel-telescope-mcp.svg)](https://packagist.org/packages/lucianotonet/laravel-telescope-mcp)
-[![Tests](https://github.com/lucianotonet/laravel-telescope-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/lucianotonet/laravel-telescope-mcp/actions/workflows/tests.yml)
-[![License](https://img.shields.io/github/license/lucianotonet/laravel-telescope-mcp)](LICENSE)
+<p align="center"><img height="43" src="./art/logo.svg" alt="Logo Laravel Telescope MCP"></p>
 
-# Laravel Telescope MCP
+<p align="center">
+  <a href="https://packagist.org/packages/lucianotonet/laravel-telescope-mcp"><img src="https://img.shields.io/packagist/v/lucianotonet/laravel-telescope-mcp.svg" alt="Latest Version on Packagist"></a>
+  <a href="https://packagist.org/packages/lucianotonet/laravel-telescope-mcp"><img src="https://img.shields.io/packagist/dt/lucianotonet/laravel-telescope-mcp.svg" alt="Downloads"></a>
+  <a href="https://github.com/lucianotonet/laravel-telescope-mcp/actions/workflows/tests.yml"><img src="https://github.com/lucianotonet/laravel-telescope-mcp/actions/workflows/tests.yml/badge.svg" alt="Tests"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/lucianotonet/laravel-telescope-mcp" alt="License"></a>
+</p>
 
 An extension for Laravel Telescope that exposes telemetry data via the Model Context Protocol (MCP) to AI assistants (e.g., Cursor, Claude, Copilot Chat). Ideal for developers who use Telescope to inspect application metrics and require quick, precise insights.
 
 ## Overview
 
 Telescope MCP exposes all Laravel Telescope telemetry data via the Model Context Protocol (MCP), enabling AI assistants to directly access and analyze application metrics. This provides developers with instant insights into logs, slow queries, HTTP requests, exceptions, jobs, and more through natural language queries.
+
+## Requirements
+
+- PHP 8.3+
+- Laravel 11 or 12
+- Laravel Telescope 5.0+
 
 **Status**: ✅ **19 MCP tools fully operational and integrated**
 
@@ -23,18 +31,6 @@ Telescope MCP exposes all Laravel Telescope telemetry data via the Model Context
 - Better request handling with `Laravel\Mcp\Request` and `Laravel\Mcp\Response`
 - Full backward compatibility maintained - all 19 tools work identically
 - Ready for future Laravel/MCP features (Resources, Prompts, OAuth authentication)
-
-## Laravel Boost users
-
-Using [Laravel Boost](https://laravel.com/docs/boost)? **Prefer the dedicated package:**
-
-**[lucianotonet/laravel-boost-telescope](https://github.com/lucianotonet/laravel-boost-telescope)** — Telescope MCP built for the Boost MCP stack. It plugs straight into your existing Boost setup, so you get one unified MCP server instead of running this package alongside Boost.
-
-```bash
-composer require lucianotonet/laravel-boost-telescope --dev
-```
-
-This package detects Laravel Boost and suggests the switch during `php artisan package:discover` (which runs automatically during `composer install` or `composer update`). You can still use this package with Boost if you prefer, but **lucianotonet/laravel-boost-telescope** is the recommended choice for Boost projects.
 
 ## Quick Start
  
@@ -57,7 +53,7 @@ This package detects Laravel Boost and suggests the switch during `php artisan p
  
 ### 1. Require Package
 ```bash
-composer require lucianotonet/laravel-telescope-mcp
+composer require lucianotonet/laravel-telescope-mcp --dev
 ```
  
 ### 2. Configure MCP Client
@@ -102,112 +98,107 @@ It should run silently (logging to stderr) and wait for JSON-RPC input.
  
 ---
  
-## Connecting via Remote (Advanced)
- 
-If you prefer to connect via HTTP (e.g., using `mcp-remote`) instead of `stdio`, follow these steps:
+## Manual Configuration per Assistant 
 
-To connect your AI assistant, you'll generally need to add a new MCP server with the following remote configuration via `mcp-remote`:
+If you prefer to configure manually, add the following to your assistant's configuration file:
 
-1. Open Cursor command palette (Cmd/Ctrl+Shift+P).
-2. Run **View: Open MCP Settings**.
-3. Add this configuration:
-
-   ```json
-   {
-     "mcpServers": {
-       "Laravel Telescope MCP": {
-         "command": "npx",
-         "args": [
-           "-y", 
-           "mcp-remote", 
-           "http://127.0.0.1:8000/telescope-mcp",
-           "--allow-http"
-         ],
-         "env": { "NODE_TLS_REJECT_UNAUTHORIZED": "0" }
-       }
-     }
-   }
-   ```
-   
-   > **Important**: Use `127.0.0.1` instead of `localhost` to avoid IPv6 connection issues
-   > Make sure the URL matches your `.env` configuration, combining `APP_URL` with `TELESCOPE_MCP_PATH`
-  
-4. For HTTPS, you can omit `--allow-http` and `NODE_TLS_REJECT_UNAUTHORIZED` like this:
-   
-   ```json
-   {
-     "mcpServers": {
-       "Laravel Telescope MCP": {
-         "command": "npx",
-         "args": [
-           "-y", 
-           "mcp-remote", 
-           "https://example.com/telescope-mcp"            
-         ]
-       }
-     }
-   }
-   ```
-
-## Troubleshooting
-
-### Connection Refused Error
-
-If you encounter `ECONNREFUSED` errors when trying to connect:
-
-**Problem**: The MCP client is trying to connect via IPv6 (`::1`) but your Laravel server only accepts IPv4 connections.
-
-**Solution**: Use `127.0.0.1` instead of `localhost` in your MCP configuration URL.
-
-**Example**:
+### Cursor, Windsurf, Cline
+**File:** `mcp.json` or `cline_mcp_settings.json`
 ```json
-// ❌ This may cause IPv6 connection issues
-"http://localhost:8000/telescope-mcp"
-
-// ✅ Use this to force IPv4 connection
-"http://127.0.0.1:8000/telescope-mcp"
+{
+  "mcpServers": {
+    "laravel-telescope": {
+      "command": "php",
+      "args": ["artisan", "telescope-mcp:server"],
+      "cwd": "/absolute/path/to/your/project",
+      "env": {
+        "APP_ENV": "local"
+      }
+    }
+  }
+}
 ```
 
-**Alternative**: If you prefer using `localhost`, you can start your Laravel server with IPv6 support:
+### Claude Code (CLI)
+You can configure via the `~/.claude/mcp.json` file (same format as Cursor) or via command:
 ```bash
-php artisan serve --host=0.0.0.0 --port=8000
+claude mcp add -s local -t stdio laravel-telescope php artisan telescope-mcp:server
 ```
 
-### MCP Tool Issues
-
-**Problem**: Some tools may show empty results or errors.
-
-**Solutions**:
-1. **Ensure Telescope is recording data**: Check if your application is generating the type of data you're querying
-2. **Verify tool parameters**: Some tools require specific parameters (e.g., `slow: true` for queries)
-3. **Check data freshness**: Some tools may not have recent data depending on your application activity
-
-**Tool-specific notes**:
-- **Prune tool**: May show errors but doesn't affect other tools
-- **Empty results**: Normal when no data of that type exists in Telescope
-
-
-## Quick Start
-
-### 1. **Install and Configure**
-```bash
-composer require lucianotonet/laravel-telescope-mcp
-php artisan vendor:publish --provider="LucianoTonet\TelescopeMcp\TelescopeMcpServiceProvider"
+### Antigravity
+**File:** `mcp_config.json` (Global configuration only)
+```json
+{
+  "mcpServers": {
+    "laravel-telescope": {
+      "command": "php",
+      "args": ["/absolute/path/to/your/project/artisan", "telescope-mcp:server"],
+      "env": {
+        "APP_ENV": "local",
+        "MCP_MODE": "stdio"
+      }
+    }
+  }
+}
 ```
 
-### 2. **Connect AI Assistant**
-If you didn't use the `telescope-mcp:install` command, you can manually configure your client (see Detailed Installation above).
+### OpenCode
+OpenCode uses a different key and requires the absolute path to `artisan`.
 
-### 3. **Start Using MCP Tools**
+**File:** `opencode.json`
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "laravel-telescope": {
+      "type": "local",
+      "enabled": true,
+      "command": ["php", "/absolute/path/to/your/project/artisan", "telescope-mcp:server"],
+      "environment": {
+        "APP_ENV": "local"
+      }
+    }
+  }
+}
+```
+
+### Codex (TOML)
+**File:** `config.toml`
+```toml
+[mcpServers.laravel-telescope]
+command = "php"
+args = ["artisan", "telescope-mcp:server"]
+cwd = "/absolute/path/to/your/project"
+
+[mcpServers.laravel-telescope.env]
+APP_ENV = "local"
+```
+
+## Troubleshooting (Stdio)
+
+### PHP or Artisan not found
+Ensure `php` is in your global PATH or use the absolute path to the PHP executable. On Windows, use double backslashes `\\` in JSON/TOML paths.
+
+### Permissions
+Ensure the AI assistant has permission to read/write in your Laravel project's `storage` directory, where Telescope stores the data.
+
+### MCP Logs
+If tools don't appear, check your assistant's error logs (e.g., Cursor Output > MCP). The command `php artisan telescope-mcp:server` should run without errors if executed manually in the terminal.
+
+
+## How to Use
+
+Once connected, you can use the MCP tools directly in your AI assistant:
+
 ```bash
-# Check recent requests
+# List recent HTTP requests
 @laravel-telescope-mcp requests --limit 5
 
-# Find errors
-@laravel-telescope-mcp exceptions --limit 3
+# Details of a specific exception
+@laravel-telescope-mcp exceptions --id 123456
 
-# Monitor database performance
-@laravel-telescope-mcp queries --slow true
+# Find slow queries
+@laravel-telescope-mcp queries --slow true --limit 10
 ```
 
 ## Usage Examples
@@ -263,9 +254,7 @@ All 19 MCP tools are fully operational and provide structured responses with bot
 | **Commands** | ✅ | Tracks Artisan command executions | `id`, `limit`, `command`, `status` |
 | **Gates** | ✅ | Records authorization checks | `id`, `limit`, `ability`, `result` |
 | **Batches** | ✅ | Lists and analyzes batch operations | `id`, `limit`, `status`, `name` |
-| **Prune** | ⚠️ | Removes old Telescope entries | `hours` |
-
-**Legend**: ✅ Fully Operational | ⚠️ Minor Issues
+| **Prune** | ✅ | Removes old Telescope entries | `hours` |
 
 ## Current Status & Features
 
