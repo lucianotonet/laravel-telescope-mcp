@@ -170,65 +170,26 @@ e79028f feat: add Laravel/MCP package and migrate RequestsTool
 6. Documentação atualizada
 7. Comandos `telescope-mcp:install` e `telescope-mcp:server` criados
 
-### 🔄 Arquivos Recém-Criados (Ainda não comitados)
-1. `src/Console/InstallMcpCommand.php` - Comando de instalação automática
+### ✅ Arquivos Recém-Criados (Comitados)
+1. `src/Console/InstallMcpCommand.php` - Comando de instalação automática (Suporte a Cursor, Claude, Windsurf, Gemini, Codex, Opencode)
 2. `src/Console/McpServerCommand.php` - Servidor MCP stdio
 3. `src/TelescopeMcpServiceProvider.php` - Atualizado com novos comandos
 
 **Mudanças Pendentes**:
-```bash
-modified:   src/TelescopeMcpServiceProvider.php
-new file:   src/Console/InstallMcpCommand.php
-new file:   src/Console/McpServerCommand.php
-```
+*Nenhuma - Tudo comitado e pronto para release*
 
 ---
 
 ## 📝 Próximos Passos (Para Continuar)
 
-### 1. Commit dos Novos Comandos
-```bash
-git add src/Console/InstallMcpCommand.php src/Console/McpServerCommand.php src/TelescopeMcpServiceProvider.php
-git commit -m "feat: add automatic MCP installation commands
+### 1. Commit dos Novos Comandos ✅
+- Comitados em `d072821`
 
-- Add telescope-mcp:install command for auto-detecting and configuring MCP clients
-- Add telescope-mcp:server command for stdio mode MCP server
-- Support Cursor, Claude Code, Windsurf, Cline, and project-specific configs
-- Auto-generate mcp.json files similar to Laravel Boost
-- Update ServiceProvider to register new commands
+### 2. Atualizar CHANGELOG.md ✅
+- Atualizado com novos comandos e features
 
-Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>"
-```
-
-### 2. Atualizar CHANGELOG.md
-Adicionar na seção v2.0.0:
-```markdown
-### Added
-- `telescope-mcp:install` command for automatic MCP client configuration
-- `telescope-mcp:server` command for running MCP server in stdio mode
-- Auto-detection of Cursor, Claude Code, Windsurf, and Cline
-- Automatic `mcp.json` generation for detected clients
-```
-
-### 3. Atualizar README.md
-Adicionar seção de instalação:
-```markdown
-## Quick Start
-
-1. Install the package:
-   ```bash
-   composer require lucianotonet/laravel-telescope-mcp
-   ```
-
-2. Auto-configure your MCP client:
-   ```bash
-   php artisan telescope-mcp:install
-   ```
-
-3. Restart your IDE/editor
-
-4. Start using Telescope tools in your AI assistant!
-```
+### 3. Atualizar README.md ✅
+- Atualizado com guia de instalação rápida e detalhada
 
 ### 4. Testes Manuais Necessários
 
