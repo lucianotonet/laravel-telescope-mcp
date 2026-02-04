@@ -4,6 +4,7 @@ namespace LucianoTonet\TelescopeMcp\Console;
 
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
+use function Laravel\Prompts\multiselect;
 
 class InstallMcpCommand extends Command
 {
@@ -160,6 +161,25 @@ class InstallMcpCommand extends Command
      */
     protected function selectClients(array $detectedClients): array
     {
+        $options = [];
+        foreach ($this->mcpClients as $key => $client) {
+            $label = $client['name'];
+            if (in_array($key, $detectedClients)) {
+                $label .= ' (Detected)';
+            }
+            $options[$key] = $label;
+        }
+
+        if (function_exists('Laravel\Prompts\multiselect')) {
+            return multiselect(
+                label: 'Which MCP clients would you like to configure?',
+                options: $options,
+                default: $detectedClients,
+                hint: 'Use space to select, enter to submit'
+            );
+        }
+
+        // Fallback for older Laravel versions
         if (count($detectedClients) === 1) {
             $client = $detectedClients[0];
             $clientName = $this->mcpClients[$client]['name'];
@@ -170,22 +190,19 @@ class InstallMcpCommand extends Command
             return [];
         }
 
-        $choices = [];
-        foreach ($detectedClients as $key) {
-            $choices[$key] = $this->mcpClients[$key]['name'];
-        }
-
         $selected = $this->choice(
             'Which MCP clients would you like to configure? (comma-separated for multiple)',
-            array_merge(['all' => 'All detected clients'], $choices),
-            'all'
+            array_merge(['all' => 'All detected clients'], $options),
+            'all',
+            null,
+            true
         );
 
-        if ($selected === 'all') {
+        if (in_array('all', $selected)) {
             return $detectedClients;
         }
 
-        return array_filter($detectedClients, fn($key) => $key === $selected);
+        return $selected;
     }
 
     /**

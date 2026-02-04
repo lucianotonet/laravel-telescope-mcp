@@ -69,9 +69,12 @@ class McpServerCommand extends Command
     /**
      * Write to stderr for logging
      */
-    protected function info($message, $stream = 'stdout'): void
+    /**
+     * Write to stderr for logging
+     */
+    public function info($message, $string = 'info'): void
     {
-        if ($stream === 'stderr') {
+        if ($string === 'stderr') {
             fwrite(STDERR, "[INFO] {$message}\n");
         } else {
             parent::info($message);
@@ -81,9 +84,9 @@ class McpServerCommand extends Command
     /**
      * Write error to stderr
      */
-    protected function error($message, $stream = 'stdout'): void
+    public function error($message, $string = 'error'): void
     {
-        if ($stream === 'stderr') {
+        if ($string === 'stderr') {
             fwrite(STDERR, "[ERROR] {$message}\n");
         } else {
             parent::error($message);
