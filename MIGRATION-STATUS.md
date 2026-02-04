@@ -28,6 +28,7 @@ Migrar o Laravel Telescope MCP de uma implementação manual (hand-written) para
 - ✅ **Rotas AI criadas** (`routes/ai.php`)
   - Usa `Laravel\Mcp\Facades\Mcp`
   - Configuração: `Mcp::web('/telescope-mcp', TelescopeServer::class)`
+- ✅ **Código legado removido** (2026-02-04): rotas/controller/servidor manual, AbstractTool, JsonRpcResponse
 
 ### FASE 3: Migração de Todas as 19 Ferramentas ✅
 
@@ -221,12 +222,6 @@ php artisan telescope-mcp:server
 - Verificar se o servidor "laravel-telescope" aparece
 - Testar algumas ferramentas (requests, logs, queries)
 
-**Teste 4: Backward Compatibility**
-```bash
-curl http://localhost/telescope-mcp-legacy/manifest.json
-# Deve retornar o manifest das rotas antigas
-```
-
 ### 5. Testes Automatizados (Opcional)
 Criar testes PHPUnit:
 ```php
@@ -363,7 +358,7 @@ git add . && git commit -m "mensagem"
 
 1. **Namespace Case**: No Windows, `MCP` e `Mcp` apontam para o mesmo diretório. Usar sempre `Mcp` (capitalizado) no namespace para consistência.
 
-2. **Backward Compatibility**: Rotas antigas mantidas em `/telescope-mcp-legacy` para não quebrar integrações existentes.
+2. **Legacy removido**: Rotas antigas (`/telescope-mcp-legacy`), McpController, TelescopeMcpServer, AbstractTool e JsonRpcResponse foram removidos; o pacote usa apenas Laravel MCP.
 
 3. **Convenção de Nomes**:
    - Comandos: `telescope-mcp:*` (com hífen)

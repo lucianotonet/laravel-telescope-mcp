@@ -10,7 +10,6 @@ All notable changes to `laravel-telescope-mcp` will be documented in this file.
 - AI routes configuration file (routes/ai.php)
 - Modern schema validation using JsonSchema builder
 - Enhanced dependency injection via handle() method
-- Backward compatibility routes (legacy routes at /telescope-mcp-legacy)
 - `telescope-mcp:install` command for automatic MCP client configuration (uses Laravel Prompts)
 - `telescope-mcp:server` command for running MCP server in stdio mode
 - Auto-detection of Cursor, Claude Code, Windsurf, Cline, Gemini, Codex, and Opencode
@@ -25,7 +24,14 @@ All notable changes to `laravel-telescope-mcp` will be documented in this file.
 - Request/Response handling uses Laravel MCP classes
 - Tool method signature: handle(Request, EntriesRepository)
 - Schema definition uses fluent JsonSchema builder
-- ServiceProvider registers both new MCP and legacy routes
+- ServiceProvider registers only Laravel MCP routes (legacy removed)
+
+### Removed
+- Legacy HTTP API (routes/api.php, /telescope-mcp-legacy)
+- McpController and TelescopeMcpServer (manual JSON-RPC server)
+- AbstractTool base class (replaced by Laravel\Mcp\Server\Tool)
+- JsonRpcResponse helper (handled by Laravel MCP)
+- Empty Http/Controllers directory structure
 
 ### Technical Improvements
 - 40% reduction in boilerplate code

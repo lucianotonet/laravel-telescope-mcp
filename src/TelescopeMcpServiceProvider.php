@@ -22,9 +22,6 @@ class TelescopeMcpServiceProvider extends ServiceProvider
             \LucianoTonet\TelescopeMcp\Mcp\Servers\TelescopeServer::class
         );
 
-        // Keep old routes for backward compatibility (deprecated)
-        $this->registerLegacyRoutes();
-
         if ($this->app->runningInConsole()) {
             $this->publishes([
                 __DIR__ . '/../config/telescope-mcp.php' => config_path('telescope-mcp.php'),
@@ -78,23 +75,6 @@ class TelescopeMcpServiceProvider extends ServiceProvider
         if (file_exists(__DIR__ . '/../routes/ai.php')) {
             $this->loadRoutesFrom(__DIR__ . '/../routes/ai.php');
         }
-    }
-
-    /**
-     * Register legacy routes for backward compatibility
-     *
-     * @deprecated These routes will be removed in a future version
-     */
-    protected function registerLegacyRoutes()
-    {
-        Route::group([
-            'prefix' => config('telescope-mcp.path', 'telescope-mcp') . '-legacy',
-            'middleware' => config('telescope-mcp.middleware', ['web']),
-        ], function () {
-            if (file_exists(__DIR__ . '/../routes/api.php')) {
-                $this->loadRoutesFrom(__DIR__ . '/../routes/api.php');
-            }
-        });
     }
 
     protected function configureLogging()
