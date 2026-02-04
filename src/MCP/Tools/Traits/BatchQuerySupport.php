@@ -1,6 +1,6 @@
 <?php
 
-namespace LucianoTonet\TelescopeMcp\MCP\Tools\Traits;
+namespace LucianoTonet\TelescopeMcp\Mcp\Tools\Traits;
 
 use Illuminate\Support\Facades\DB;
 

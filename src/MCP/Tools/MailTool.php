@@ -9,7 +9,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
-use LucianoTonet\TelescopeMcp\MCP\Tools\Traits\BatchQuerySupport;
+use LucianoTonet\TelescopeMcp\Mcp\Tools\Traits\BatchQuerySupport;
 use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
 /**

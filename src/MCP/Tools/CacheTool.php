@@ -9,7 +9,7 @@ use Laravel\Mcp\Server\Tool;
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
-use LucianoTonet\TelescopeMcp\MCP\Tools\Traits\BatchQuerySupport;
+use LucianoTonet\TelescopeMcp\Mcp\Tools\Traits\BatchQuerySupport;
 use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
 /**
@@ -52,7 +52,8 @@ class CacheTool extends Tool
     protected function listCache(Request $request, EntriesRepository $repository): Response
     {
         $limit = min($request->integer('limit', 50), 100);
-        $options = new EntryQueryOptions($limit);
+        $options = new EntryQueryOptions();
+        $options->limit($limit);
 
         if ($operation = $request->get('operation')) {
             $options->tag('operation:' . strtolower($operation));

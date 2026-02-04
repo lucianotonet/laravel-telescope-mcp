@@ -2,11 +2,11 @@
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryResult;
-use LucianoTonet\TelescopeMcp\MCP\Tools\LogsTool;
+use LucianoTonet\TelescopeMcp\Mcp\Tools\LogsTool;
 
 test('hasRequestId returns true when request_id is provided', function () {
     $repository = Mockery::mock(EntriesRepository::class);
-    $tool = new LogsTool($repository);
+    $tool = new LogsTool();
 
     $reflection = new \ReflectionClass($tool);
     $method = $reflection->getMethod('hasRequestId');
@@ -18,7 +18,7 @@ test('hasRequestId returns true when request_id is provided', function () {
 
 test('hasRequestId returns false when request_id is missing or empty', function () {
     $repository = Mockery::mock(EntriesRepository::class);
-    $tool = new LogsTool($repository);
+    $tool = new LogsTool();
 
     $reflection = new \ReflectionClass($tool);
     $method = $reflection->getMethod('hasRequestId');
