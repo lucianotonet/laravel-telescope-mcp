@@ -191,7 +191,9 @@ e79028f feat: add Laravel/MCP package and migrate RequestsTool
 ### 3. Atualizar README.md ✅
 - Atualizado com guia de instalação rápida e detalhada
 
-### 4. Testes Manuais Necessários
+### 4. Melhorias na Instalação ✅
+- Implementado `multiselect` interativo no comando `telescope-mcp:install`
+- Corrigido bug de visibilidade no `McpServerCommand`
 
 **Teste 1: Instalação Automática**
 ```bash
