@@ -15,6 +15,8 @@ All notable changes to `laravel-telescope-mcp` will be documented in this file.
 - `telescope-mcp:server` command for running MCP server in stdio mode
 - Auto-detection of Cursor, Claude Code, Windsurf, Cline, Gemini, Codex, and Opencode
 - Interactive multiselect for choosing which AI clients to configure
+- Default configuration now generated in project directory (e.g., `.cursor/mcp.json`)
+- Use `--global` flag to install to user home directory instead
 - Automatic `mcp.json` (or equivalent) generation for detected clients
 
 ### Changed
