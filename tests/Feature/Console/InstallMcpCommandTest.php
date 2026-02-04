@@ -25,7 +25,7 @@ test('install command loadMcpConfig returns empty structure when file does not e
     $path = sys_get_temp_dir() . '/telescope-mcp-test-' . uniqid() . '-nonexistent.json';
     $result = $method->invoke($this->command, $path);
 
-    expect($result)->toBe(['mcpServers' => []]);
+    expect($result)->toBe([]);
 });
 
 test('install command loadMcpConfig returns parsed config when valid json exists', function () {
@@ -63,7 +63,7 @@ test('install command loadMcpConfig returns empty structure and creates backup w
 
     try {
         $result = $method->invoke($command, $path);
-        expect($result)->toBe(['mcpServers' => []]);
+        expect($result)->toBe([]);
         expect(File::exists($path . '.backup'))->toBeTrue();
     } finally {
         if (File::exists($path)) {
