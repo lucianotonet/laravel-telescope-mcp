@@ -1,179 +1,75 @@
 <?php
 
-namespace LucianoTonet\TelescopeMcp\MCP\Tools;
+namespace LucianoTonet\TelescopeMcp\Mcp\Tools;
 
+use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
+use Laravel\Mcp\Server\Contracts\IsReadOnly;
 use Laravel\Telescope\Contracts\EntriesRepository;
-use LucianoTonet\TelescopeMcp\Support\Logger;
-use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
 /**
  * Tool for interacting with dump entries recorded by Telescope
  */
-class DumpsTool extends AbstractTool
+class DumpsTool extends Tool implements IsReadOnly
 {
-    /**
-     * @var EntriesRepository
-     */
-    protected $entriesRepository;
+    protected string $name = 'dumps';
+    protected string $title = 'Telescope Dumps';
+    protected string $description = 'Lists and analyzes dump entries recorded by Telescope.';
 
-    /**
-     * DumpsTool constructor
-     * 
-     * @param EntriesRepository $entriesRepository The Telescope entries repository
-     */
-    public function __construct(EntriesRepository $entriesRepository)
+    public function handle(Request $request, EntriesRepository $repository): Response
     {
-        $this->entriesRepository = $entriesRepository;
+        try {
+            if ($id = $request->get('id')) {
+                return $this->getDumpDetails($id, $repository);
+            }
+            return $this->listDumps($request, $repository);
+        } catch (\Exception $e) {
+            return Response::error('Error: ' . $e->getMessage());
+        }
     }
 
-    /**
-     * Returns the tool's short name
-     * 
-     * @return string
-     */
-    public function getShortName(): string
-    {
-        return 'dumps';
-    }
-
-    /**
-     * Returns the tool's schema
-     * 
-     * @return array
-     */
-    public function getSchema(): array
+    public function schema(JsonSchema $schema): array
     {
         return [
-            'name' => $this->getName(),
-            'description' => 'Lists and analyzes dump entries recorded by Telescope.',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'id' => [
-                        'type' => 'string',
-                        'description' => 'ID of the specific dump entry to view details'
-                    ],
-                    'limit' => [
-                        'type' => 'integer',
-                        'description' => 'Maximum number of dump entries to return',
-                        'default' => 50
-                    ],
-                    'file' => [
-                        'type' => 'string',
-                        'description' => 'Filter by file path'
-                    ],
-                    'line' => [
-                        'type' => 'integer',
-                        'description' => 'Filter by line number'
-                    ]
-                ],
-                'required' => []
-            ],
-            'outputSchema' => [
-                'type' => 'object',
-                'properties' => [
-                    'content' => [
-                        'type' => 'array',
-                        'items' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'type' => ['type' => 'string'],
-                                'text' => ['type' => 'string']
-                            ],
-                            'required' => ['type', 'text']
-                        ]
-                    ]
-                ],
-                'required' => ['content']
-            ],
-            'examples' => [
-                [
-                    'description' => 'List last 10 dump entries',
-                    'params' => ['limit' => 10]
-                ],
-                [
-                    'description' => 'Get details of a specific dump entry',
-                    'params' => ['id' => '12345']
-                ],
-                [
-                    'description' => 'List dumps from a specific file',
-                    'params' => ['file' => 'app/Http/Controllers/HomeController.php']
-                ]
-            ]
+            'id' => $schema->string()->description('ID of specific dump entry'),
+            'limit' => $schema->integer()->default(50)->description('Maximum number of dump entries to return'),
+            'file' => $schema->string()->description('Filter by file path'),
+            'line' => $schema->integer()->description('Filter by line number'),
         ];
     }
 
-    /**
-     * Executes the tool with the given parameters
-     * 
-     * @param array $params Tool parameters
-     * @return array Response in MCP format
-     */
-    public function execute(array $params): array
+    protected function listDumps(Request $request, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' execute method called', ['params' => $params]);
-
-        try {
-            // Check if details of a specific dump entry were requested
-            if ($this->hasId($params)) {
-                return $this->getDumpDetails($params['id']);
-            }
-
-            return $this->listDumps($params);
-        } catch (\Exception $e) {
-            Logger::error($this->getName() . ' execution error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return $this->formatError('Error: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Lists dump entries recorded by Telescope
-     * 
-     * @param array $params Query parameters
-     * @return array Response in MCP format
-     */
-    protected function listDumps(array $params): array
-    {
-        // Set query limit
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
-
-        // Configure options
+        $limit = min($request->integer('limit', 50), 100);
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Add filters if specified
-        if (!empty($params['file'])) {
-            $options->tag('file:' . $params['file']);
+        if ($file = $request->get('file')) {
+            $options->tag('file:' . $file);
         }
-        if (!empty($params['line'])) {
-            $options->tag('line:' . $params['line']);
+        if ($line = $request->get('line')) {
+            $options->tag('line:' . $line);
         }
 
-        // Fetch entries using the repository
-        $entries = $this->entriesRepository->get(EntryType::DUMP, $options);
-
+        $entries = $repository->get(EntryType::DUMP, $options);
         if (empty($entries)) {
-            return $this->formatResponse("No dump entries found.");
+            return Response::text("No dump entries found.");
         }
 
         $dumps = [];
-
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
             $createdAt = DateFormatter::format($entry->createdAt);
 
-            // Extract relevant information from the dump entry
             $file = $content['file'] ?? 'Unknown';
             $line = $content['line'] ?? 0;
             $dump = $content['dump'] ?? 'Empty dump';
 
-            // Format dump content for display
             if (is_array($dump) || is_object($dump)) {
                 $dump = json_encode($dump);
             }
@@ -191,62 +87,45 @@ class DumpsTool extends AbstractTool
             ];
         }
 
-        // Tabular formatting for better readability
         $table = "Dump Entries:\n\n";
-        $table .= sprintf("%-5s %-40s %-6s %-50s %-20s\n", 
+        $table .= sprintf("%-5s %-40s %-6s %-50s %-20s\n",
             "ID", "File", "Line", "Content", "Created At");
         $table .= str_repeat("-", 125) . "\n";
 
         foreach ($dumps as $dump) {
-            // Truncate file path if too long
-            $file = $dump['file'];
-            $file = $this->safeString($file);
+            $file = $this->safeString($dump['file']);
             if (strlen($file) > 40) {
                 $file = "..." . substr($file, -37);
             }
 
-            $table .= sprintf(
-                "%-5s %-40s %-6s %-50s %-20s\n",
-                $dump['id'],
-                $file,
-                $dump['line'],
-                $dump['dump'],
-                $dump['created_at']
-            );
+            $table .= sprintf("%-5s %-40s %-6s %-50s %-20s\n",
+                $dump['id'], $file, $dump['line'], $dump['dump'], $dump['created_at']);
         }
 
-        return $this->formatResponse($table);
+        $table .= "\n\n--- JSON Data ---\n" . json_encode([
+            'total' => count($dumps),
+            'dumps' => $dumps
+        ], JSON_PRETTY_PRINT);
+
+        return Response::text($table);
     }
 
-    /**
-     * Gets details of a specific dump entry
-     * 
-     * @param string $id The dump entry ID
-     * @return array Response in MCP format
-     */
-    protected function getDumpDetails(string $id): array
+    protected function getDumpDetails(string $id, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' getting details', ['id' => $id]);
-
-        // Fetch the specific entry
-        $entry = $this->getEntryDetails(EntryType::DUMP, $id);
-
+        $entry = $repository->find($id);
         if (!$entry) {
-            return $this->formatError("Dump entry not found: {$id}");
+            return Response::error("Dump entry not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
+        $createdAt = DateFormatter::format($entry->createdAt);
 
-        // Detailed formatting of the dump entry
         $output = "Dump Entry Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "File: " . ($content['file'] ?? 'Unknown') . "\n";
         $output .= "Line: " . ($content['line'] ?? 'Unknown') . "\n";
-
-        $createdAt = DateFormatter::format($entry->createdAt);
         $output .= "Created At: {$createdAt}\n\n";
 
-        // Dump content
         $dump = $content['dump'] ?? null;
         if ($dump !== null) {
             $output .= "Content:\n";
@@ -257,6 +136,31 @@ class DumpsTool extends AbstractTool
             }
         }
 
-        return $this->formatResponse($output);
+        $output .= "\n\n--- JSON Data ---\n" . json_encode([
+            'id' => $entry->id,
+            'file' => $content['file'] ?? 'Unknown',
+            'line' => $content['line'] ?? 'Unknown',
+            'dump' => $content['dump'] ?? null,
+            'created_at' => $createdAt
+        ], JSON_PRETTY_PRINT);
+
+        return Response::text($output);
+    }
+
+    protected function safeString($value): string
+    {
+        if (is_array($value)) {
+            return json_encode($value, JSON_PRETTY_PRINT);
+        } elseif (is_object($value)) {
+            return json_encode($value, JSON_PRETTY_PRINT);
+        } elseif (is_null($value)) {
+            return '';
+        } elseif (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        } elseif (is_numeric($value)) {
+            return (string) $value;
+        } else {
+            return (string) $value;
+        }
     }
 } 

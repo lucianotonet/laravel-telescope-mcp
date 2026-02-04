@@ -1,247 +1,129 @@
 <?php
 
-namespace LucianoTonet\TelescopeMcp\MCP\Tools;
+namespace LucianoTonet\TelescopeMcp\Mcp\Tools;
 
+use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
+use Laravel\Mcp\Server\Contracts\IsReadOnly;
 use Laravel\Telescope\Contracts\EntriesRepository;
-use LucianoTonet\TelescopeMcp\Support\Logger;
-use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
 /**
  * Tool for interacting with scheduled tasks recorded by Telescope
  */
-class ScheduleTool extends AbstractTool
+class ScheduleTool extends Tool implements IsReadOnly
 {
-    /**
-     * @var EntriesRepository
-     */
-    protected $entriesRepository;
+    protected string $name = 'schedule';
+    protected string $title = 'Telescope Schedule';
+    protected string $description = 'Lists and analyzes scheduled tasks recorded by Telescope.';
 
-    /**
-     * ScheduleTool constructor
-     * 
-     * @param EntriesRepository $entriesRepository The Telescope entries repository
-     */
-    public function __construct(EntriesRepository $entriesRepository)
+    public function handle(Request $request, EntriesRepository $repository): Response
     {
-        $this->entriesRepository = $entriesRepository;
+        try {
+            if ($id = $request->get('id')) {
+                return $this->getScheduleDetails($id, $repository);
+            }
+            return $this->listScheduledTasks($request, $repository);
+        } catch (\Exception $e) {
+            return Response::error('Error: ' . $e->getMessage());
+        }
     }
 
-    /**
-     * Returns the tool's short name
-     * 
-     * @return string
-     */
-    public function getShortName(): string
-    {
-        return 'schedule';
-    }
-
-    /**
-     * Returns the tool's schema
-     * 
-     * @return array
-     */
-    public function getSchema(): array
+    public function schema(JsonSchema $schema): array
     {
         return [
-            'name' => $this->getName(),
-            'description' => 'Lists and analyzes scheduled tasks recorded by Telescope.',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'id' => [
-                        'type' => 'string',
-                        'description' => 'ID of the specific scheduled task to view details'
-                    ],
-                    'limit' => [
-                        'type' => 'integer',
-                        'description' => 'Maximum number of scheduled tasks to return',
-                        'default' => 50
-                    ]
-                ],
-                'required' => []
-            ],
-            'outputSchema' => [
-                'type' => 'object',
-                'properties' => [
-                    'content' => [
-                        'type' => 'array',
-                        'items' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'type' => ['type' => 'string'],
-                                'text' => ['type' => 'string']
-                            ],
-                            'required' => ['type', 'text']
-                        ]
-                    ]
-                ],
-                'required' => ['content']
-            ],
-            'examples' => [
-                [
-                    'description' => 'List last 10 scheduled tasks',
-                    'params' => ['limit' => 10]
-                ],
-                [
-                    'description' => 'Get details of a specific scheduled task',
-                    'params' => ['id' => '12345']
-                ]
-            ]
+            'id' => $schema->string()->description('ID of specific scheduled task'),
+            'limit' => $schema->integer()->default(50)->description('Max tasks'),
         ];
     }
 
-    /**
-     * Executes the tool with the given parameters
-     * 
-     * @param array $params Tool parameters
-     * @return array Response in MCP format
-     */
-    public function execute(array $params): array
+    protected function listScheduledTasks(Request $request, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' execute method called', ['params' => $params]);
-
-        try {
-            // Check if details of a specific scheduled task were requested
-            if ($this->hasId($params)) {
-                return $this->getScheduleDetails($params['id']);
-            }
-
-            return $this->listScheduledTasks($params);
-        } catch (\Exception $e) {
-            Logger::error($this->getName() . ' execution error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return $this->formatError('Error: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Lists scheduled tasks recorded by Telescope
-     * 
-     * @param array $params Query parameters
-     * @return array Response in MCP format
-     */
-    protected function listScheduledTasks(array $params): array
-    {
-        // Set query limit
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
-
-        // Configure options
+        $limit = min($request->integer('limit', 50), 100);
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Fetch entries using the repository
-        $entries = $this->entriesRepository->get(EntryType::SCHEDULED_TASK, $options);
-
-        if (empty($entries)) {
-            return $this->formatResponse("No scheduled tasks found.");
-        }
+        $entries = $repository->get(EntryType::SCHEDULED_TASK, $options);
+        if (empty($entries)) return Response::text("No scheduled tasks found.");
 
         $tasks = [];
-
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->createdAt);
-
-            // Extract relevant information from the scheduled task
-            $command = $content['command'] ?? 'Unknown';
-            $expression = $content['expression'] ?? 'Unknown';
-            $description = $content['description'] ?? '';
-            $output = $content['output'] ?? '';
             $exitCode = $content['exit_code'] ?? null;
             $status = $exitCode === 0 ? 'Success' : ($exitCode === null ? 'Running' : 'Failed');
 
             $tasks[] = [
                 'id' => $entry->id,
-                'command' => $command,
-                'expression' => $expression,
-                'description' => $description,
+                'command' => $content['command'] ?? 'Unknown',
+                'expression' => $content['expression'] ?? 'Unknown',
+                'description' => $content['description'] ?? '',
                 'status' => $status,
-                'created_at' => $createdAt
+                'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown'
             ];
         }
 
-        // Tabular formatting for better readability
         $table = "Scheduled Tasks:\n\n";
-        $table .= sprintf("%-5s %-30s %-15s %-30s %-10s %-20s\n", 
+        $table .= sprintf("%-5s %-30s %-15s %-30s %-10s %-20s\n",
             "ID", "Command", "Expression", "Description", "Status", "Created At");
         $table .= str_repeat("-", 120) . "\n";
 
         foreach ($tasks as $task) {
-            // Truncate fields if too long
-            $command = $task['command'];
-            $command = $this->safeString($command);
-            if (strlen($command) > 30) {
-                $command = substr($command, 0, 27) . "...";
-            }
+            $command = strlen($task['command']) > 30 ? substr($task['command'], 0, 27) . "..." : $task['command'];
+            $description = strlen($task['description']) > 30 ? substr($task['description'], 0, 27) . "..." : $task['description'];
 
-            $description = $task['description'];
-            $description = $this->safeString($description);
-            if (strlen($description) > 30) {
-                $description = substr($description, 0, 27) . "...";
-            }
-
-            $table .= sprintf(
-                "%-5s %-30s %-15s %-30s %-10s %-20s\n",
-                $task['id'],
-                $command,
-                $task['expression'],
-                $description,
-                $task['status'],
-                $task['created_at']
-            );
+            $table .= sprintf("%-5s %-30s %-15s %-30s %-10s %-20s\n",
+                $task['id'], $command, $task['expression'], $description,
+                $task['status'], $task['created_at']);
         }
 
-        return $this->formatResponse($table);
+        $table .= "\n\n--- JSON Data ---\n" . json_encode(['total' => count($tasks), 'tasks' => $tasks], JSON_PRETTY_PRINT);
+        return Response::text($table);
     }
 
-    /**
-     * Gets details of a specific scheduled task
-     * 
-     * @param string $id The scheduled task ID
-     * @return array Response in MCP format
-     */
-    protected function getScheduleDetails(string $id): array
+    protected function getScheduleDetails(string $id, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' getting details', ['id' => $id]);
-
-        // Fetch the specific entry
-        $entry = $this->getEntryDetails(EntryType::SCHEDULED_TASK, $id);
-
-        if (!$entry) {
-            return $this->formatError("Scheduled task not found: {$id}");
-        }
+        $entry = $repository->find($id);
+        if (!$entry) return Response::error("Scheduled task not found: {$id}");
 
         $content = is_array($entry->content) ? $entry->content : [];
+        $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
 
-        // Detailed formatting of the scheduled task
+        $exitCode = $content['exit_code'] ?? null;
+        $status = $exitCode === 0 ? 'Success' : ($exitCode === null ? 'Running' : 'Failed');
+
         $output = "Scheduled Task Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Command: " . ($content['command'] ?? 'Unknown') . "\n";
         $output .= "Expression: " . ($content['expression'] ?? 'Unknown') . "\n";
         $output .= "Description: " . ($content['description'] ?? 'None') . "\n";
-        
-        $exitCode = $content['exit_code'] ?? null;
-        $status = $exitCode === 0 ? 'Success' : ($exitCode === null ? 'Running' : 'Failed');
         $output .= "Status: {$status}\n";
-        
+
         if ($exitCode !== null) {
             $output .= "Exit Code: {$exitCode}\n";
         }
 
-        $createdAt = DateFormatter::format($entry->createdAt);
         $output .= "Created At: {$createdAt}\n\n";
 
-        // Command output
         if (!empty($content['output'])) {
             $output .= "Command Output:\n" . $content['output'] . "\n\n";
         }
 
-        return $this->formatResponse($output);
+        $jsonData = [
+            'id' => $entry->id,
+            'command' => $content['command'] ?? 'Unknown',
+            'expression' => $content['expression'] ?? 'Unknown',
+            'description' => $content['description'] ?? '',
+            'status' => $status,
+            'exit_code' => $exitCode,
+            'created_at' => $createdAt,
+            'output' => $content['output'] ?? null,
+        ];
+
+        $output .= "\n\n--- JSON Data ---\n" . json_encode($jsonData, JSON_PRETTY_PRINT);
+        return Response::text($output);
     }
-} 
+}

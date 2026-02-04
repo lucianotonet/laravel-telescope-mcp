@@ -1,146 +1,74 @@
 <?php
 
-namespace LucianoTonet\TelescopeMcp\MCP\Tools;
+namespace LucianoTonet\TelescopeMcp\Mcp\Tools;
 
+use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
+use Laravel\Mcp\Server\Contracts\IsReadOnly;
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
-use LucianoTonet\TelescopeMcp\Support\Logger;
-use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use LucianoTonet\TelescopeMcp\MCP\Tools\Traits\BatchQuerySupport;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
-class EventsTool extends AbstractTool
+/**
+ * Tool for interacting with events recorded by Telescope
+ */
+class EventsTool extends Tool implements IsReadOnly
 {
     use BatchQuerySupport;
 
-    /**
-     * Retorna o nome curto da ferramenta
-     */
-    public function getShortName(): string
+    protected string $name = 'events';
+    protected string $title = 'Telescope Events';
+    protected string $description = 'Lists and analyzes events recorded by Telescope.';
+
+    public function handle(Request $request, EntriesRepository $repository): Response
     {
-        return 'events';
+        try {
+            if ($id = $request->get('id')) {
+                return $this->getEventDetails($id, $repository);
+            }
+
+            if ($requestId = $request->get('request_id')) {
+                return $this->listEventsForRequest($requestId, $request, $repository);
+            }
+
+            return $this->listEvents($request, $repository);
+        } catch (\Exception $e) {
+            return Response::error('Error: ' . $e->getMessage());
+        }
     }
 
-    /**
-     * Retorna o esquema da ferramenta
-     */
-    public function getSchema(): array
+    public function schema(JsonSchema $schema): array
     {
         return [
-            'name' => $this->getName(),
-            'description' => 'Lista e analisa eventos registrados pelo Telescope',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'id' => [
-                        'type' => 'string',
-                        'description' => 'ID do evento específico para ver detalhes'
-                    ],
-                    'request_id' => [
-                        'type' => 'string',
-                        'description' => 'Filter events by the request ID they belong to (uses batch_id grouping)'
-                    ],
-                    'limit' => [
-                        'type' => 'integer',
-                        'description' => 'Número máximo de eventos a retornar',
-                        'default' => 50
-                    ],
-                    'name' => [
-                        'type' => 'string',
-                        'description' => 'Filtrar por nome do evento'
-                    ]
-                ],
-                'required' => []
-            ],
-            'outputSchema' => [
-                'type' => 'object',
-                'properties' => [
-                    'content' => [
-                        'type' => 'array',
-                        'items' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'type' => ['type' => 'string'],
-                                'text' => ['type' => 'string']
-                            ],
-                            'required' => ['type', 'text']
-                        ]
-                    ]
-                ],
-                'required' => ['content']
-            ],
-            'examples' => [
-                [
-                    'description' => 'List last 10 events',
-                    'params' => ['limit' => 10]
-                ],
-                [
-                    'description' => 'List events for a specific request',
-                    'params' => ['request_id' => 'abc123']
-                ]
-            ]
+            'id' => $schema->string()->description('ID of specific event'),
+            'request_id' => $schema->string()->description('Filter events by request ID (uses batch_id grouping)'),
+            'limit' => $schema->integer()->default(50)->description('Maximum number of events to return'),
+            'name' => $schema->string()->description('Filter by event name'),
         ];
     }
 
-    /**
-     * Executa a ferramenta com os parâmetros fornecidos
-     */
-    public function execute(array $params): array
+    protected function listEvents(Request $request, EntriesRepository $repository): Response
     {
-        try {
-            Logger::info($this->getName() . ' execute method called', ['params' => $params]);
-
-            // Verificar se foi solicitado detalhes de um evento específico
-            if ($this->hasId($params)) {
-                return $this->getEventDetails($params['id']);
-            }
-
-            // Check if filtering by request_id
-            if ($this->hasRequestId($params)) {
-                return $this->listEventsForRequest($params['request_id'], $params);
-            }
-
-            return $this->listEvents($params);
-        } catch (\Exception $e) {
-            Logger::error($this->getName() . ' execution error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return $this->formatError('Error: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Lista os eventos registrados pelo Telescope
-     */
-    protected function listEvents(array $params): array
-    {
-        // Definir limite para a consulta
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
-
-        // Configurar opções
+        $limit = min($request->integer('limit', 50), 100);
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Adicionar filtro por nome se especificado
-        if (!empty($params['name'])) {
-            $options->tag($params['name']);
+        if ($name = $request->get('name')) {
+            $options->tag($name);
         }
 
-        // Buscar entradas usando o repositório
-        $entries = $this->entriesRepository->get(EntryType::EVENT, $options);
-
+        $entries = $repository->get(EntryType::EVENT, $options);
         if (empty($entries)) {
-            return $this->formatResponse("Nenhum evento encontrado.");
+            return Response::text("No events found.");
         }
 
         $events = [];
-
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-
-            // Format the date using DateFormatter
             $createdAt = DateFormatter::format($entry->createdAt);
 
             $events[] = [
@@ -151,64 +79,45 @@ class EventsTool extends AbstractTool
             ];
         }
 
-        // Formatação tabular para facilitar a leitura
         $table = "Events:\n\n";
         $table .= sprintf("%-5s %-60s %-10s %-20s\n", "ID", "Name", "Listeners", "Created At");
         $table .= str_repeat("-", 100) . "\n";
 
         foreach ($events as $event) {
-            // Truncar nome longo
-            $name = $event['name'];
-            $name = $this->safeString($name);
+            $name = $this->safeString($event['name']);
             if (strlen($name) > 60) {
                 $name = substr($name, 0, 57) . "...";
             }
 
-            $table .= sprintf(
-                "%-5s %-60s %-10s %-20s\n",
-                $event['id'],
-                $name,
-                $event['listeners'],
-                $event['created_at']
-            );
+            $table .= sprintf("%-5s %-60s %-10s %-20s\n",
+                $event['id'], $name, $event['listeners'], $event['created_at']);
         }
 
-        $combinedText = $table . "\n\n--- JSON Data ---\n" . json_encode([
+        $table .= "\n\n--- JSON Data ---\n" . json_encode([
             'total' => count($events),
             'events' => $events
         ], JSON_PRETTY_PRINT);
 
-        return $this->formatResponse($combinedText);
+        return Response::text($table);
     }
 
-    /**
-     * Lists events for a specific request using batch_id
-     *
-     * @param string $requestId The request ID
-     * @param array $params Tool parameters
-     * @return array Response in MCP format
-     */
-    protected function listEventsForRequest(string $requestId, array $params): array
+    protected function listEventsForRequest(string $requestId, Request $request, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' listing events for request', ['request_id' => $requestId]);
-
-        // Get the batch_id for this request
         $batchId = $this->getBatchIdForRequest($requestId);
 
         if (!$batchId) {
-            return $this->formatError("Request not found or has no batch ID: {$requestId}");
+            return Response::error("Request not found or has no batch ID: {$requestId}");
         }
 
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
-
-        // Get events for this batch
+        $limit = min($request->integer('limit', 50), 100);
         $entries = $this->getEntriesByBatchId($batchId, 'event', $limit);
 
         if (empty($entries)) {
-            return $this->formatResponse("No events found for request: {$requestId}");
+            return Response::text("No events found for request: {$requestId}");
         }
 
         $events = [];
+        $nameFilter = $request->get('name');
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
@@ -216,8 +125,7 @@ class EventsTool extends AbstractTool
 
             $name = $content['name'] ?? 'Unknown';
 
-            // Filter by name if specified
-            if (!empty($params['name']) && strpos($name, $params['name']) === false) {
+            if ($nameFilter && strpos($name, $nameFilter) === false) {
                 continue;
             }
 
@@ -229,7 +137,6 @@ class EventsTool extends AbstractTool
             ];
         }
 
-        // Formatação tabular com contexto do request
         $table = "Events for Request: {$requestId}\n";
         $table .= "Batch ID: {$batchId}\n";
         $table .= "Total: " . count($events) . " events\n\n";
@@ -237,62 +144,44 @@ class EventsTool extends AbstractTool
         $table .= str_repeat("-", 100) . "\n";
 
         foreach ($events as $event) {
-            $name = $event['name'];
-            $name = $this->safeString($name);
+            $name = $this->safeString($event['name']);
             if (strlen($name) > 60) {
                 $name = substr($name, 0, 57) . "...";
             }
 
-            $table .= sprintf(
-                "%-5s %-60s %-10s %-20s\n",
-                $event['id'],
-                $name,
-                $event['listeners'],
-                $event['created_at']
-            );
+            $table .= sprintf("%-5s %-60s %-10s %-20s\n",
+                $event['id'], $name, $event['listeners'], $event['created_at']);
         }
 
-        $combinedText = $table . "\n\n--- JSON Data ---\n" . json_encode([
+        $table .= "\n\n--- JSON Data ---\n" . json_encode([
             'request_id' => $requestId,
             'batch_id' => $batchId,
             'total' => count($events),
             'events' => $events
         ], JSON_PRETTY_PRINT);
 
-        return $this->formatResponse($combinedText);
+        return Response::text($table);
     }
 
-    /**
-     * Obtém detalhes de um evento específico
-     */
-    protected function getEventDetails(string $id): array
+    protected function getEventDetails(string $id, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' getting details', ['id' => $id]);
-
-        // Buscar a entrada específica
-        $entry = $this->getEntryDetails(EntryType::EVENT, $id);
-
+        $entry = $repository->find($id);
         if (!$entry) {
-            return $this->formatError("Evento não encontrado: {$id}");
+            return Response::error("Event not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
-
-        // Format the date using DateFormatter
         $createdAt = DateFormatter::format($entry->createdAt);
 
-        // Detailed formatting of the event
         $output = "Event Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Name: " . ($content['name'] ?? 'Unknown') . "\n";
         $output .= "Created At: {$createdAt}\n\n";
 
-        // Payload do evento
         if (isset($content['payload']) && !empty($content['payload'])) {
             $output .= "Payload:\n" . json_encode($content['payload'], JSON_PRETTY_PRINT) . "\n\n";
         }
 
-        // Listeners
         if (isset($content['listeners']) && !empty($content['listeners'])) {
             $output .= "Listeners:\n";
             foreach ($content['listeners'] as $listener) {
@@ -300,7 +189,7 @@ class EventsTool extends AbstractTool
             }
         }
 
-        $combinedText = $output . "\n\n--- JSON Data ---\n" . json_encode([
+        $output .= "\n\n--- JSON Data ---\n" . json_encode([
             'id' => $entry->id,
             'name' => $content['name'] ?? 'Unknown',
             'created_at' => $createdAt,
@@ -308,6 +197,23 @@ class EventsTool extends AbstractTool
             'listeners' => $content['listeners'] ?? []
         ], JSON_PRETTY_PRINT);
 
-        return $this->formatResponse($combinedText);
+        return Response::text($output);
+    }
+
+    protected function safeString($value): string
+    {
+        if (is_array($value)) {
+            return json_encode($value, JSON_PRETTY_PRINT);
+        } elseif (is_object($value)) {
+            return json_encode($value, JSON_PRETTY_PRINT);
+        } elseif (is_null($value)) {
+            return '';
+        } elseif (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        } elseif (is_numeric($value)) {
+            return (string) $value;
+        } else {
+            return (string) $value;
+        }
     }
 }

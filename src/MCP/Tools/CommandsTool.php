@@ -1,176 +1,71 @@
 <?php
 
-namespace LucianoTonet\TelescopeMcp\MCP\Tools;
+namespace LucianoTonet\TelescopeMcp\Mcp\Tools;
 
+use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
+use Laravel\Mcp\Server\Contracts\IsReadOnly;
 use Laravel\Telescope\Contracts\EntriesRepository;
-use LucianoTonet\TelescopeMcp\Support\Logger;
-use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
 /**
  * Tool for interacting with command executions recorded by Telescope
  */
-class CommandsTool extends AbstractTool
+class CommandsTool extends Tool implements IsReadOnly
 {
-    /**
-     * @var EntriesRepository
-     */
-    protected $entriesRepository;
+    protected string $name = 'commands';
+    protected string $title = 'Telescope Commands';
+    protected string $description = 'Lists and analyzes command executions recorded by Telescope.';
 
-    /**
-     * CommandsTool constructor
-     * 
-     * @param EntriesRepository $entriesRepository The Telescope entries repository
-     */
-    public function __construct(EntriesRepository $entriesRepository)
+    public function handle(Request $request, EntriesRepository $repository): Response
     {
-        $this->entriesRepository = $entriesRepository;
+        try {
+            if ($id = $request->get('id')) {
+                return $this->getCommandDetails($id, $repository);
+            }
+            return $this->listCommands($request, $repository);
+        } catch (\Exception $e) {
+            return Response::error('Error: ' . $e->getMessage());
+        }
     }
 
-    /**
-     * Returns the tool's short name
-     * 
-     * @return string
-     */
-    public function getShortName(): string
-    {
-        return 'commands';
-    }
-
-    /**
-     * Returns the tool's schema
-     * 
-     * @return array
-     */
-    public function getSchema(): array
+    public function schema(JsonSchema $schema): array
     {
         return [
-            'name' => $this->getName(),
-            'description' => 'Lists and analyzes command executions recorded by Telescope.',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'id' => [
-                        'type' => 'string',
-                        'description' => 'ID of the specific command execution to view details'
-                    ],
-                    'limit' => [
-                        'type' => 'integer',
-                        'description' => 'Maximum number of command executions to return',
-                        'default' => 50
-                    ],
-                    'command' => [
-                        'type' => 'string',
-                        'description' => 'Filter by command name'
-                    ],
-                    'status' => [
-                        'type' => 'string',
-                        'description' => 'Filter by execution status (success, error)',
-                        'enum' => ['success', 'error']
-                    ]
-                ],
-                'required' => []
-            ],
-            'outputSchema' => [
-                'type' => 'object',
-                'properties' => [
-                    'content' => [
-                        'type' => 'array',
-                        'items' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'type' => ['type' => 'string'],
-                                'text' => ['type' => 'string']
-                            ],
-                            'required' => ['type', 'text']
-                        ]
-                    ]
-                ],
-                'required' => ['content']
-            ],
-            'examples' => [
-                [
-                    'description' => 'List last 10 command executions',
-                    'params' => ['limit' => 10]
-                ],
-                [
-                    'description' => 'Get details of a specific command execution',
-                    'params' => ['id' => '12345']
-                ],
-                [
-                    'description' => 'List failed command executions',
-                    'params' => ['status' => 'error']
-                ]
-            ]
+            'id' => $schema->string()->description('ID of specific command execution'),
+            'limit' => $schema->integer()->default(50)->description('Maximum number of command executions to return'),
+            'command' => $schema->string()->description('Filter by command name'),
+            'status' => $schema->enum(['success', 'error'])->description('Filter by execution status'),
         ];
     }
 
-    /**
-     * Executes the tool with the given parameters
-     * 
-     * @param array $params Tool parameters
-     * @return array Response in MCP format
-     */
-    public function execute(array $params): array
+    protected function listCommands(Request $request, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' execute method called', ['params' => $params]);
-
-        try {
-            // Check if details of a specific command execution were requested
-            if ($this->hasId($params)) {
-                return $this->getCommandDetails($params['id']);
-            }
-
-            return $this->listCommands($params);
-        } catch (\Exception $e) {
-            Logger::error($this->getName() . ' execution error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return $this->formatError('Error: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Lists command executions recorded by Telescope
-     * 
-     * @param array $params Query parameters
-     * @return array Response in MCP format
-     */
-    protected function listCommands(array $params): array
-    {
-        // Set query limit
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
-
-        // Configure options
+        $limit = min($request->integer('limit', 50), 100);
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Add filters if specified
-        if (!empty($params['command'])) {
-            $options->tag('command:' . $params['command']);
+        if ($command = $request->get('command')) {
+            $options->tag('command:' . $command);
         }
-        if (!empty($params['status'])) {
-            $options->tag('status:' . $params['status']);
+        if ($status = $request->get('status')) {
+            $options->tag('status:' . $status);
         }
 
-        // Fetch entries using the repository
-        $entries = $this->entriesRepository->get(EntryType::COMMAND, $options);
-
+        $entries = $repository->get(EntryType::COMMAND, $options);
         if (empty($entries)) {
-            return $this->formatResponse("No command executions found.");
+            return Response::text("No command executions found.");
         }
 
         $commands = [];
-
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            
-            // Get timestamp from content
             $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
-            
+
             $commands[] = [
                 'id' => $entry->id,
                 'command' => $content['command'] ?? 'Unknown',
@@ -180,69 +75,50 @@ class CommandsTool extends AbstractTool
             ];
         }
 
-        // Tabular formatting for better readability
         $table = "Command Executions:\n\n";
-        $table .= sprintf("%-5s %-20s %-40s %-10s %-20s\n", 
+        $table .= sprintf("%-5s %-20s %-40s %-10s %-20s\n",
             "ID", "Command", "Arguments/Options", "Status", "Created At");
         $table .= str_repeat("-", 100) . "\n";
 
         foreach ($commands as $cmd) {
-            // Combine args and opts, truncate if too long
-            $params = trim($cmd['arguments']);
-            $params = $this->safeString($params);
+            $params = $this->safeString(trim($cmd['arguments']));
             if (strlen($params) > 40) {
                 $params = substr($params, 0, 37) . "...";
             }
 
-            // Format status with indicator
             $statusStr = $cmd['exit_code'] === 0 ? 'Success' : ($cmd['exit_code'] === null ? 'Unknown' : 'Error');
             if ($statusStr === 'Error') {
                 $statusStr .= " [{$cmd['exit_code']}]";
             }
 
-            $table .= sprintf(
-                "%-5s %-20s %-40s %-10s %-20s\n",
-                $cmd['id'],
-                $cmd['command'],
-                $params,
-                $statusStr,
-                $cmd['created_at']
-            );
+            $table .= sprintf("%-5s %-20s %-40s %-10s %-20s\n",
+                $cmd['id'], $cmd['command'], $params, $statusStr, $cmd['created_at']);
         }
 
-        return $this->formatResponse($table);
+        $table .= "\n\n--- JSON Data ---\n" . json_encode([
+            'total' => count($commands),
+            'commands' => $commands
+        ], JSON_PRETTY_PRINT);
+
+        return Response::text($table);
     }
 
-    /**
-     * Gets details of a specific command execution
-     * 
-     * @param string $id The command execution ID
-     * @return array Response in MCP format
-     */
-    protected function getCommandDetails(string $id): array
+    protected function getCommandDetails(string $id, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' getting details', ['id' => $id]);
-
-        // Fetch the specific entry
-        $entry = $this->getEntryDetails(EntryType::COMMAND, $id);
-
+        $entry = $repository->find($id);
         if (!$entry) {
-            return $this->formatError("Command execution not found: {$id}");
+            return Response::error("Command execution not found: {$id}");
         }
 
         $content = is_array($entry->content) ? $entry->content : [];
-        
-        // Get timestamp from content
         $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
-        
-        // Detailed formatting of the command
+
         $output = "Command Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Command: " . ($content['command'] ?? 'Unknown') . "\n";
         $output .= "Exit Code: " . ($content['exit_code'] ?? 0) . "\n";
         $output .= "Created At: {$createdAt}\n\n";
 
-        // Arguments
         if (!empty($content['arguments'])) {
             $output .= "Arguments:\n";
             foreach ($content['arguments'] as $arg) {
@@ -251,7 +127,6 @@ class CommandsTool extends AbstractTool
             $output .= "\n";
         }
 
-        // Options
         if (!empty($content['options'])) {
             $output .= "Options:\n";
             foreach ($content['options'] as $key => $value) {
@@ -264,11 +139,37 @@ class CommandsTool extends AbstractTool
             $output .= "\n";
         }
 
-        // Output
         if (!empty($content['output'])) {
             $output .= "Output:\n" . $content['output'] . "\n";
         }
 
-        return $this->formatResponse($output);
+        $output .= "\n\n--- JSON Data ---\n" . json_encode([
+            'id' => $entry->id,
+            'command' => $content['command'] ?? 'Unknown',
+            'exit_code' => $content['exit_code'] ?? 0,
+            'arguments' => $content['arguments'] ?? [],
+            'options' => $content['options'] ?? [],
+            'output' => $content['output'] ?? null,
+            'created_at' => $createdAt
+        ], JSON_PRETTY_PRINT);
+
+        return Response::text($output);
+    }
+
+    protected function safeString($value): string
+    {
+        if (is_array($value)) {
+            return json_encode($value, JSON_PRETTY_PRINT);
+        } elseif (is_object($value)) {
+            return json_encode($value, JSON_PRETTY_PRINT);
+        } elseif (is_null($value)) {
+            return '';
+        } elseif (is_bool($value)) {
+            return $value ? 'true' : 'false';
+        } elseif (is_numeric($value)) {
+            return (string) $value;
+        } else {
+            return (string) $value;
+        }
     }
 } 

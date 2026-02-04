@@ -1,266 +1,122 @@
 <?php
 
-namespace LucianoTonet\TelescopeMcp\MCP\Tools;
+namespace LucianoTonet\TelescopeMcp\Mcp\Tools;
 
+use Illuminate\Contracts\JsonSchema\JsonSchema;
+use Laravel\Mcp\Request;
+use Laravel\Mcp\Response;
+use Laravel\Mcp\Server\Tool;
+use Laravel\Mcp\Server\Contracts\IsReadOnly;
 use Laravel\Telescope\Contracts\EntriesRepository;
-use LucianoTonet\TelescopeMcp\Support\Logger;
-use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
+use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 
 /**
  * Tool for interacting with gate checks recorded by Telescope
  */
-class GatesTool extends AbstractTool
+class GatesTool extends Tool implements IsReadOnly
 {
-    /**
-     * @var EntriesRepository
-     */
-    protected $entriesRepository;
+    protected string $name = 'gates';
+    protected string $title = 'Telescope Gates';
+    protected string $description = 'Lists and analyzes gate authorization checks recorded by Telescope.';
 
-    /**
-     * GatesTool constructor
-     * 
-     * @param EntriesRepository $entriesRepository The Telescope entries repository
-     */
-    public function __construct(EntriesRepository $entriesRepository)
+    public function handle(Request $request, EntriesRepository $repository): Response
     {
-        $this->entriesRepository = $entriesRepository;
+        try {
+            if ($id = $request->get('id')) {
+                return $this->getGateDetails($id, $repository);
+            }
+            return $this->listGateChecks($request, $repository);
+        } catch (\Exception $e) {
+            return Response::error('Error: ' . $e->getMessage());
+        }
     }
 
-    /**
-     * Returns the tool's short name
-     * 
-     * @return string
-     */
-    public function getShortName(): string
-    {
-        return 'gates';
-    }
-
-    /**
-     * Returns the tool's schema
-     * 
-     * @return array
-     */
-    public function getSchema(): array
+    public function schema(JsonSchema $schema): array
     {
         return [
-            'name' => $this->getName(),
-            'description' => 'Lists and analyzes gate authorization checks recorded by Telescope.',
-            'parameters' => [
-                'type' => 'object',
-                'properties' => [
-                    'id' => [
-                        'type' => 'string',
-                        'description' => 'ID of the specific gate check to view details'
-                    ],
-                    'limit' => [
-                        'type' => 'integer',
-                        'description' => 'Maximum number of gate checks to return',
-                        'default' => 50
-                    ],
-                    'ability' => [
-                        'type' => 'string',
-                        'description' => 'Filter by gate ability name'
-                    ],
-                    'result' => [
-                        'type' => 'string',
-                        'description' => 'Filter by check result (allowed, denied)',
-                        'enum' => ['allowed', 'denied']
-                    ]
-                ],
-                'required' => []
-            ],
-            'outputSchema' => [
-                'type' => 'object',
-                'properties' => [
-                    'content' => [
-                        'type' => 'array',
-                        'items' => [
-                            'type' => 'object',
-                            'properties' => [
-                                'type' => ['type' => 'string'],
-                                'text' => ['type' => 'string']
-                            ],
-                            'required' => ['type', 'text']
-                        ]
-                    ]
-                ],
-                'required' => ['content']
-            ],
-            'examples' => [
-                [
-                    'description' => 'List last 10 gate checks',
-                    'params' => ['limit' => 10]
-                ],
-                [
-                    'description' => 'Get details of a specific gate check',
-                    'params' => ['id' => '12345']
-                ],
-                [
-                    'description' => 'List denied gate checks',
-                    'params' => ['result' => 'denied']
-                ]
-            ]
+            'id' => $schema->string()->description('ID of specific gate check'),
+            'limit' => $schema->integer()->default(50)->description('Max gate checks'),
+            'ability' => $schema->string()->description('Filter by gate ability name'),
+            'result' => $schema->string()->description('Filter by check result (allowed, denied)'),
         ];
     }
 
-    /**
-     * Executes the tool with the given parameters
-     * 
-     * @param array $params Tool parameters
-     * @return array Response in MCP format
-     */
-    public function execute(array $params): array
+    protected function listGateChecks(Request $request, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' execute method called', ['params' => $params]);
-
-        try {
-            // Check if details of a specific gate check were requested
-            if ($this->hasId($params)) {
-                return $this->getGateDetails($params['id']);
-            }
-
-            return $this->listGateChecks($params);
-        } catch (\Exception $e) {
-            Logger::error($this->getName() . ' execution error', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return $this->formatError('Error: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Lists gate checks recorded by Telescope
-     * 
-     * @param array $params Query parameters
-     * @return array Response in MCP format
-     */
-    protected function listGateChecks(array $params): array
-    {
-        // Set query limit
-        $limit = isset($params['limit']) ? min((int)$params['limit'], 100) : 50;
-
-        // Configure options
+        $limit = min($request->integer('limit', 50), 100);
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        // Add filters if specified
-        if (!empty($params['ability'])) {
-            $options->tag('ability:' . $params['ability']);
-        }
-        if (!empty($params['result'])) {
-            $options->tag('result:' . $params['result']);
-        }
+        if ($ability = $request->get('ability')) $options->tag('ability:' . $ability);
+        if ($result = $request->get('result')) $options->tag('result:' . $result);
 
-        // Fetch entries using the repository
-        $entries = $this->entriesRepository->get(EntryType::GATE, $options);
-
-        if (empty($entries)) {
-            return $this->formatResponse("No gate checks found.");
-        }
+        $entries = $repository->get(EntryType::GATE, $options);
+        if (empty($entries)) return Response::text("No gate checks found.");
 
         $checks = [];
-
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
-            $createdAt = DateFormatter::format($entry->createdAt);
-
-            // Extract relevant information from the gate check
-            $ability = $content['ability'] ?? 'Unknown';
-            $result = isset($content['result']) && $content['result'] ? 'Allowed' : 'Denied';
-            $user = $content['user'] ?? 'Unknown';
-
             $checks[] = [
                 'id' => $entry->id,
-                'ability' => $ability,
-                'result' => $result,
-                'user' => $user,
-                'created_at' => $createdAt
+                'ability' => $content['ability'] ?? 'Unknown',
+                'result' => isset($content['result']) && $content['result'] ? 'Allowed' : 'Denied',
+                'user' => $content['user'] ?? 'Unknown',
+                'created_at' => DateFormatter::format($entry->createdAt)
             ];
         }
 
-        // Tabular formatting for better readability
         $table = "Gate Checks:\n\n";
-        $table .= sprintf("%-5s %-30s %-10s %-30s %-20s\n", 
-            "ID", "Ability", "Result", "User", "Created At");
+        $table .= sprintf("%-5s %-30s %-10s %-30s %-20s\n", "ID", "Ability", "Result", "User", "Created At");
         $table .= str_repeat("-", 100) . "\n";
 
         foreach ($checks as $check) {
-            // Truncate fields if too long
-            $ability = $check['ability'];
-            $ability = $this->safeString($ability);
-            if (strlen($ability) > 30) {
-                $ability = substr($ability, 0, 27) . "...";
-            }
-
-            $user = $check['user'];
-            $user = $this->safeString($user);
-            if (strlen($user) > 30) {
-                $user = substr($user, 0, 27) . "...";
-            }
-
-            // Format result with color indicator
+            $ability = strlen($check['ability']) > 30 ? substr($check['ability'], 0, 27) . "..." : $check['ability'];
+            $user = strlen($check['user']) > 30 ? substr($check['user'], 0, 27) . "..." : $check['user'];
             $resultStr = $check['result'];
-            if ($resultStr === 'Denied') {
-                $resultStr .= ' [!]';
-            }
+            if ($resultStr === 'Denied') $resultStr .= ' [!]';
 
-            $table .= sprintf(
-                "%-5s %-30s %-10s %-30s %-20s\n",
-                $check['id'],
-                $ability,
-                $resultStr,
-                $user,
-                $check['created_at']
-            );
+            $table .= sprintf("%-5s %-30s %-10s %-30s %-20s\n",
+                $check['id'], $ability, $resultStr, $user, $check['created_at']);
         }
 
-        return $this->formatResponse($table);
+        $table .= "\n\n--- JSON Data ---\n" . json_encode(['total' => count($checks), 'checks' => $checks], JSON_PRETTY_PRINT);
+        return Response::text($table);
     }
 
-    /**
-     * Gets details of a specific gate check
-     * 
-     * @param string $id The gate check ID
-     * @return array Response in MCP format
-     */
-    protected function getGateDetails(string $id): array
+    protected function getGateDetails(string $id, EntriesRepository $repository): Response
     {
-        Logger::info($this->getName() . ' getting details', ['id' => $id]);
-
-        // Fetch the specific entry
-        $entry = $this->getEntryDetails(EntryType::GATE, $id);
-
-        if (!$entry) {
-            return $this->formatError("Gate check not found: {$id}");
-        }
+        $entry = $repository->find($id);
+        if (!$entry) return Response::error("Gate check not found: {$id}");
 
         $content = is_array($entry->content) ? $entry->content : [];
+        $createdAt = DateFormatter::format($entry->createdAt);
 
-        // Detailed formatting of the gate check
         $output = "Gate Check Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Ability: " . ($content['ability'] ?? 'Unknown') . "\n";
         $output .= "Result: " . (isset($content['result']) && $content['result'] ? 'Allowed' : 'Denied') . "\n";
         $output .= "User: " . ($content['user'] ?? 'Unknown') . "\n";
-
-        $createdAt = DateFormatter::format($entry->createdAt);
         $output .= "Created At: {$createdAt}\n\n";
 
-        // Arguments
         if (!empty($content['arguments'])) {
             $output .= "Arguments:\n" . json_encode($content['arguments'], JSON_PRETTY_PRINT) . "\n\n";
         }
 
-        // Additional context
         if (!empty($content['context'])) {
             $output .= "Context:\n" . json_encode($content['context'], JSON_PRETTY_PRINT) . "\n";
         }
 
-        return $this->formatResponse($output);
+        $jsonData = [
+            'id' => $entry->id,
+            'ability' => $content['ability'] ?? 'Unknown',
+            'result' => isset($content['result']) && $content['result'] ? 'Allowed' : 'Denied',
+            'user' => $content['user'] ?? 'Unknown',
+            'created_at' => $createdAt,
+        ];
+
+        $output .= "\n\n--- JSON Data ---\n" . json_encode($jsonData, JSON_PRETTY_PRINT);
+        return Response::text($output);
     }
 } 
