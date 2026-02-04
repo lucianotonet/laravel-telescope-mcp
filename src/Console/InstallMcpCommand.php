@@ -32,49 +32,73 @@ class InstallMcpCommand extends Command
     protected array $mcpClients = [
         'cursor' => [
             'name' => 'Cursor',
-            'config_path' => '~/.cursor/mcp.json',
+            'paths' => [
+                'global' => '~/.cursor/mcp.json',
+                'project' => '.cursor/mcp.json',
+            ],
             'auto_detected' => true,
             'type' => 'json',
         ],
         'claude-code' => [
             'name' => 'Claude Code',
-            'config_path' => '~/.claude/mcp.json',
+            'paths' => [
+                'global' => '~/.claude/mcp.json',
+                'project' => '.claude/mcp.json',
+            ],
             'auto_detected' => true,
             'type' => 'json',
         ],
         'windsurf' => [
             'name' => 'Windsurf',
-            'config_path' => '~/.windsurf/mcp.json',
+            'paths' => [
+                'global' => '~/.windsurf/mcp.json',
+                'project' => '.windsurf/mcp.json',
+            ],
             'auto_detected' => true,
             'type' => 'json',
         ],
         'gemini' => [
             'name' => 'Gemini App',
-            'config_path' => '~/.gemini/settings.json',
+            'paths' => [
+                'global' => '~/.gemini/settings.json',
+                'project' => '.gemini/settings.json',
+            ],
             'auto_detected' => true,
             'type' => 'json',
         ],
         'codex' => [
             'name' => 'Codex',
-            'config_path' => '~/.codex/config.toml',
+            'paths' => [
+                'global' => '~/.codex/config.toml',
+                'project' => '.codex/config.toml',
+            ],
             'auto_detected' => true,
             'type' => 'toml',
         ],
         'opencode' => [
             'name' => 'OpenCode',
-            'config_path' => '~/.config/opencode/opencode.json',
+            'paths' => [
+                'global' => '~/.config/opencode/opencode.json',
+                'project' => '.opencode/config.json',
+            ],
             'auto_detected' => true,
             'type' => 'json',
         ],
         'cline' => [
             'name' => 'Cline (VS Code)',
-            'config_path' => '~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json',
+            'paths' => [
+                'global' => '~/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json',
+                'project' => '.vscode/mcp.json', // Custom convention for project-level
+            ],
             'auto_detected' => false,
             'type' => 'json',
         ],
         'project' => [
             'name' => 'Project-specific (.mcp.json)',
-            'config_path' => '.mcp.json',
+            'paths' => [
+                'global' => null, // No global equivalent
+                'project' => '.mcp.json',
+            ],
             'auto_detected' => false,
             'type' => 'json',
         ],
@@ -145,11 +169,21 @@ class InstallMcpCommand extends Command
                 continue;
             }
 
-            $configPath = $this->expandPath($client['config_path']);
-
-            // Check if config file exists or if parent directory exists
-            if (File::exists($configPath) || File::exists(dirname($configPath))) {
-                $detected[] = $key;
+            // Start by checking global config to detect usage
+            if ($client['paths']['global']) {
+                $globalPath = $this->expandPath($client['paths']['global']);
+                if (File::exists($globalPath) || File::exists(dirname($globalPath))) {
+                    $detected[] = $key;
+                    continue; // Detected via global, move to next
+                }
+            }
+            
+            // Also check project config
+            if ($client['paths']['project']) {
+                $projectPath = base_path($client['paths']['project']);
+                if (File::exists($projectPath)) {
+                    $detected[] = $key;
+                }
             }
         }
 
@@ -211,7 +245,23 @@ class InstallMcpCommand extends Command
     protected function installForClient(string $clientKey): bool
     {
         $client = $this->mcpClients[$clientKey];
-        $configPath = $this->expandPath($client['config_path']);
+        $isGlobal = $this->option('global');
+        
+        // Determine target path
+        if ($isGlobal) {
+            if (empty($client['paths']['global'])) {
+                $this->components->warn("No global configuration path available for {$client['name']}. Skipping.");
+                return false;
+            }
+            $configPath = $this->expandPath($client['paths']['global']);
+        } else {
+             if (empty($client['paths']['project'])) {
+                $this->components->warn("No project configuration path available for {$client['name']}. Skipping.");
+                return false;
+            }
+            $configPath = base_path($client['paths']['project']);
+        }
+
         $type = $client['type'] ?? 'json';
 
         // Ensure directory exists
@@ -237,8 +287,9 @@ class InstallMcpCommand extends Command
                 json_encode($config, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n"
             );
 
+            $location = $isGlobal ? 'global' : 'project';
             $this->components->task(
-                "Configured {$client['name']}",
+                "Configured {$client['name']} ({$location})",
                 fn() => true
             );
 
@@ -376,9 +427,11 @@ class InstallMcpCommand extends Command
         ], JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . '</>');
 
         $this->newLine();
-        $this->line('Common MCP config locations:');
+        $this->line('Common MCP config locations (Global):');
         foreach ($this->mcpClients as $key => $client) {
-            $this->line("  • {$client['name']}: <fg=gray>{$client['config_path']}</>");
+            if (!empty($client['paths']['global'])) {
+                $this->line("  • {$client['name']}: <fg=gray>{$client['paths']['global']}</>");
+            }
         }
     }
 
