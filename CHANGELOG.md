@@ -2,7 +2,7 @@
 
 All notable changes to `laravel-telescope-mcp` will be documented in this file.
 
-## [2.0.0] - 2026-02-04
+## [1.0.0] - 2026-02-04
 
 ### Added
 - Integration with official Laravel/MCP package (v0.5.3)
@@ -47,6 +47,6 @@ All notable changes to `laravel-telescope-mcp` will be documented in this file.
 - Tabular + JSON data output format
 - All filters and parameters working
 
-## [1.x] - Previous Versions
+## [0.x] - Previous Versions
 
-See previous releases for version 1.x changelog.
+See previous releases for version 0.x changelog.

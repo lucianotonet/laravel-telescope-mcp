@@ -58,27 +58,37 @@ class LogsTool extends Tool
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        if ($level = $request->get('level')) {
-            $options->tag('level:' . strtolower($level));
-        }
-        if ($message = $request->get('message')) {
-            $options->tag('message:' . $message);
-        }
-
+        // Note: Telescope doesn't tag logs by default, so we fetch all and filter manually
         $entries = $repository->get(EntryType::LOG, $options);
         if (empty($entries)) {
             return Response::text("No log entries found.");
         }
 
+        $levelFilter = $request->get('level');
+        $messageFilter = $request->get('message');
+
         $logs = [];
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $level = $content['level'] ?? 'Unknown';
+            $message = $content['message'] ?? 'No message';
+
+            // Filter by level if specified
+            if ($levelFilter && strtolower($level) !== strtolower($levelFilter)) {
+                continue;
+            }
+
+            // Filter by message content if specified (case-insensitive partial match)
+            if ($messageFilter && stripos($message, $messageFilter) === false) {
+                continue;
+            }
+
             $createdAt = DateFormatter::format($entry->createdAt);
 
             $logs[] = [
                 'id' => $entry->id,
-                'level' => $content['level'] ?? 'Unknown',
-                'message' => $content['message'] ?? 'No message',
+                'level' => $level,
+                'message' => $message,
                 'created_at' => $createdAt,
             ];
         }
@@ -127,6 +137,7 @@ class LogsTool extends Tool
 
         $logs = [];
         $levelFilter = $request->get('level');
+        $messageFilter = $request->get('message');
 
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
@@ -137,6 +148,11 @@ class LogsTool extends Tool
 
             // Filter by level if specified
             if ($levelFilter && strtolower($level) !== strtolower($levelFilter)) {
+                continue;
+            }
+
+            // Filter by message content if specified (case-insensitive partial match)
+            if ($messageFilter && stripos($message, $messageFilter) === false) {
                 continue;
             }
 

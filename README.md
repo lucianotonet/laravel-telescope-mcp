@@ -13,7 +13,7 @@ Telescope MCP exposes all Laravel Telescope telemetry data via the Model Context
 
 **Status**: ✅ **19 MCP tools fully operational and integrated**
 
-### What's New in v2.0
+### What's New in v1.0
 
 🎉 **Now powered by the official [Laravel/MCP](https://github.com/laravel/mcp) package!**
 
