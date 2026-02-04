@@ -6,7 +6,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-use Laravel\Mcp\Server\Contracts\IsReadOnly;
+
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -16,7 +16,7 @@ use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 /**
  * Tool for interacting with cache operations recorded by Telescope
  */
-class CacheTool extends Tool implements IsReadOnly
+class CacheTool extends Tool
 {
     use BatchQuerySupport;
 
@@ -45,7 +45,7 @@ class CacheTool extends Tool implements IsReadOnly
             'id' => $schema->string()->description('ID of specific cache operation'),
             'request_id' => $schema->string()->description('Filter cache operations by request ID (uses batch_id grouping)'),
             'limit' => $schema->integer()->default(50)->description('Maximum number of cache operations to return'),
-            'operation' => $schema->enum(['hit', 'miss', 'set', 'forget'])->description('Filter by operation type'),
+            'operation' => $schema->string()->enum(['hit', 'miss', 'set', 'forget'])->description('Filter by operation type'),
             'key' => $schema->string()->description('Filter by cache key (partial match)'),
         ];
     }

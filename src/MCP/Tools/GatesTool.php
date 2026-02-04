@@ -6,7 +6,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-use Laravel\Mcp\Server\Contracts\IsReadOnly;
+
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -15,7 +15,7 @@ use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 /**
  * Tool for interacting with gate checks recorded by Telescope
  */
-class GatesTool extends Tool implements IsReadOnly
+class GatesTool extends Tool
 {
     protected string $name = 'gates';
     protected string $title = 'Telescope Gates';

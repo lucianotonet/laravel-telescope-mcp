@@ -13,7 +13,7 @@ class McpServerCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'telescope:mcp';
+    protected $signature = 'telescope-mcp:server';
 
     /**
      * The console command description.
@@ -34,28 +34,14 @@ class McpServerCommand extends Command
         ini_set('error_log', 'php://stderr');
 
         try {
-            // Create and run the Telescope MCP server
-            $server = new TelescopeServer();
+            $transport = new \Laravel\Mcp\Server\Transport\StdioTransport(uniqid());
+            $server = new TelescopeServer($transport);
 
-            // Laravel MCP framework will handle stdio communication automatically
-            // The server will read from stdin and write to stdout
-
-            // Note: In Laravel MCP v0.5.3, servers run via artisan commands
-            // automatically enter stdio mode when called from MCP clients
-
-            // The framework handles:
-            // - Reading JSON-RPC requests from stdin
-            // - Routing to appropriate tools
-            // - Writing JSON-RPC responses to stdout
+            $server->start();
 
             $this->info('Telescope MCP Server started in stdio mode', 'stderr');
-            $this->info('Waiting for JSON-RPC requests...', 'stderr');
-
-            // Keep the process running
-            // Laravel MCP will handle the actual stdio loop
-            while (true) {
-                sleep(1);
-            }
+            
+            $transport->run();
 
         } catch (\Exception $e) {
             $this->error('MCP Server Error: ' . $e->getMessage(), 'stderr');

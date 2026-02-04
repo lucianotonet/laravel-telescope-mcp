@@ -6,7 +6,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-use Laravel\Mcp\Server\Contracts\IsReadOnly;
+
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -16,7 +16,7 @@ use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 /**
  * Tool for interacting with log entries recorded by Telescope
  */
-class LogsTool extends Tool implements IsReadOnly
+class LogsTool extends Tool
 {
     use BatchQuerySupport;
 
@@ -47,7 +47,7 @@ class LogsTool extends Tool implements IsReadOnly
             'id' => $schema->string()->description('ID of the specific log entry to view details'),
             'request_id' => $schema->string()->description('Filter logs by the request ID they belong to (uses batch_id grouping)'),
             'limit' => $schema->integer()->default(50)->description('Maximum number of log entries to return'),
-            'level' => $schema->enum(['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'])
+            'level' => $schema->string()->enum(['debug', 'info', 'notice', 'warning', 'error', 'critical', 'alert', 'emergency'])
                 ->description('Filter by log level'),
             'message' => $schema->string()->description('Filter by log message content'),
         ];

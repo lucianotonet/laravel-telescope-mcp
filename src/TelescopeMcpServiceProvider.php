@@ -16,6 +16,12 @@ class TelescopeMcpServiceProvider extends ServiceProvider
         // Register Laravel/MCP AI routes
         $this->registerMcpRoutes();
 
+        // Register as Local Server for stdio support (mcp:start, mcp:inspector)
+        \Laravel\Mcp\Facades\Mcp::local(
+            config('telescope-mcp.path', 'telescope-mcp'),
+            \LucianoTonet\TelescopeMcp\Mcp\Servers\TelescopeServer::class
+        );
+
         // Keep old routes for backward compatibility (deprecated)
         $this->registerLegacyRoutes();
 

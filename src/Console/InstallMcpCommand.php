@@ -458,7 +458,7 @@ class InstallMcpCommand extends Command
 
                 case 'claude-code':
                     $this->line('  • Server should auto-enable on next restart');
-                    $this->line('  • Or run: claude mcp add -s local -t stdio laravel-telescope php artisan telescope:mcp');
+                    $this->line('  • Or run: claude mcp add -s local -t stdio laravel-telescope php artisan telescope-mcp:server');
                     break;
 
                 case 'windsurf':
@@ -491,7 +491,7 @@ class InstallMcpCommand extends Command
         $this->newLine();
 
         $this->line('Test the server with:');
-        $this->line('  <fg=cyan>php artisan telescope:mcp</> (runs in stdio mode)');
+        $this->line('  <fg=cyan>php artisan telescope-mcp:server</> (runs in stdio mode)');
     }
 
     /**

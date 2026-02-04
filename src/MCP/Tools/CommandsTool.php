@@ -6,7 +6,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-use Laravel\Mcp\Server\Contracts\IsReadOnly;
+
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -15,7 +15,7 @@ use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 /**
  * Tool for interacting with command executions recorded by Telescope
  */
-class CommandsTool extends Tool implements IsReadOnly
+class CommandsTool extends Tool
 {
     protected string $name = 'commands';
     protected string $title = 'Telescope Commands';
@@ -39,7 +39,7 @@ class CommandsTool extends Tool implements IsReadOnly
             'id' => $schema->string()->description('ID of specific command execution'),
             'limit' => $schema->integer()->default(50)->description('Maximum number of command executions to return'),
             'command' => $schema->string()->description('Filter by command name'),
-            'status' => $schema->enum(['success', 'error'])->description('Filter by execution status'),
+            'status' => $schema->string()->enum(['success', 'error'])->description('Filter by execution status'),
         ];
     }
 

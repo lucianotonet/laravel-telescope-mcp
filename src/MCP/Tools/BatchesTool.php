@@ -6,7 +6,7 @@ use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Mcp\Request;
 use Laravel\Mcp\Response;
 use Laravel\Mcp\Server\Tool;
-use Laravel\Mcp\Server\Contracts\IsReadOnly;
+
 use Laravel\Telescope\Contracts\EntriesRepository;
 use Laravel\Telescope\EntryType;
 use Laravel\Telescope\Storage\EntryQueryOptions;
@@ -15,7 +15,7 @@ use LucianoTonet\TelescopeMcp\Support\DateFormatter;
 /**
  * Tool for interacting with batch operations recorded by Telescope
  */
-class BatchesTool extends Tool implements IsReadOnly
+class BatchesTool extends Tool
 {
     protected string $name = 'batches';
     protected string $title = 'Telescope Batches';
@@ -38,7 +38,7 @@ class BatchesTool extends Tool implements IsReadOnly
         return [
             'id' => $schema->string()->description('ID of specific batch operation'),
             'limit' => $schema->integer()->default(50)->description('Maximum number of batch operations to return'),
-            'status' => $schema->enum(['pending', 'processing', 'finished', 'failed'])->description('Filter by batch status'),
+            'status' => $schema->string()->enum(['pending', 'processing', 'finished', 'failed'])->description('Filter by batch status'),
             'name' => $schema->string()->description('Filter by batch name'),
         ];
     }

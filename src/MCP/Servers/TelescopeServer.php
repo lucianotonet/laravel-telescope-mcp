@@ -28,6 +28,13 @@ class TelescopeServer extends Server
     protected string $version = '2.0.0';
 
     /**
+     * The default pagination length.
+     *
+     * @var int
+     */
+    public int $defaultPaginationLength = 50;
+
+    /**
      * Instructions for using this server
      *
      * @var string
