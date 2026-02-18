@@ -20,6 +20,7 @@ class TelescopeMcpServiceProvider extends ServiceProvider
         // Register Laravel/MCP AI routes
         if (config('telescope-mcp.routes', true)) {
             $this->registerMcpRoutes();
+            $this->warnIfMcpEndpointIsUnprotected();
         }
 
         // Register as Local Server for stdio support (mcp:start, mcp:inspector)
@@ -94,5 +95,41 @@ class TelescopeMcpServiceProvider extends ServiceProvider
             Logger::info('Test route accessed');
             return response()->json(['message' => 'Teste do Telescope MCP']);
         });
+    }
+
+    protected function warnIfMcpEndpointIsUnprotected(): void
+    {
+        if (!$this->app->environment('production')) {
+            return;
+        }
+
+        $middleware = config('telescope-mcp.middleware', ['api']);
+        if (!is_array($middleware)) {
+            return;
+        }
+
+        if (config('telescope-mcp.auth.enabled', false) || $this->containsAuthMiddleware($middleware)) {
+            return;
+        }
+
+        logger()->warning(
+            'Laravel Telescope MCP endpoint appears to be unprotected in production. Add auth middleware or enable bearer auth.',
+            ['path' => config('telescope-mcp.path', 'telescope-mcp')]
+        );
+    }
+
+    protected function containsAuthMiddleware(array $middleware): bool
+    {
+        foreach ($middleware as $item) {
+            if (!is_string($item)) {
+                continue;
+            }
+
+            if ($item === 'auth' || str_starts_with($item, 'auth:')) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

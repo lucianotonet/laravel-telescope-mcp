@@ -41,7 +41,28 @@ return [
     | These middleware will be assigned to every Telescope MCP route.
     |
     */
-    'middleware' => ['api'],
+    'middleware' => array_values(array_filter(array_map(
+        trim(...),
+        explode(',', (string) env('TELESCOPE_MCP_MIDDLEWARE', 'api'))
+    ))),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Telescope MCP Bearer Authentication
+    |--------------------------------------------------------------------------
+    |
+    | Optional built-in bearer token authentication for HTTP MCP route.
+    | Useful for Streamable HTTP clients and MCP Inspector.
+    |
+    */
+    'auth' => [
+        'enabled' => env(
+            'TELESCOPE_MCP_AUTH_ENABLED',
+            env('TELESCOPE_MCP_BEARER_TOKEN') !== null || env('MCP_BEARER_TOKEN') !== null
+        ),
+        'bearer_token' => env('TELESCOPE_MCP_BEARER_TOKEN', env('MCP_BEARER_TOKEN')),
+        'header' => env('TELESCOPE_MCP_AUTH_HEADER', 'Authorization'),
+    ],
 
     /*
     |--------------------------------------------------------------------------

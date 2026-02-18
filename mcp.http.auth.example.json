@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "laravel-telescope-local": {
+      "type": "streamable-http",
+      "url": "https://your-local-domain.test/telescope-mcp",
+      "headers": {
+        "Authorization": "Bearer ${MCP_BEARER_TOKEN}"
+      }
+    },
+    "laravel-telescope-online": {
+      "type": "streamable-http",
+      "url": "https://your-public-domain.com/telescope-mcp",
+      "headers": {
+        "Authorization": "Bearer ${MCP_BEARER_TOKEN}"
+      }
+    }
+  }
+}

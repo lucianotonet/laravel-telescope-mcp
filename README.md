@@ -19,6 +19,9 @@ Telescope MCP exposes all Laravel Telescope telemetry data via the Model Context
 - Laravel 11 or 12
 - Laravel Telescope 5.0+
 
+> [!IMPORTANT]
+> The HTTP MCP endpoint is **not authenticated by default**. If you expose it online, enable authentication first (see "Secure Streamable HTTP in IDEs").
+
 **Status**: ✅ **19 MCP tools fully operational and integrated**
 
 ### What's New in v1.0
@@ -185,6 +188,91 @@ Ensure the AI assistant has permission to read/write in your Laravel project's `
 ### MCP Logs
 If tools don't appear, check your assistant's error logs (e.g., Cursor Output > MCP). The command `php artisan telescope-mcp:server` should run without errors if executed manually in the terminal.
 
+## Using MCP Inspector (Browser UI / HTTP)
+
+If you want to test your server from the browser using `@modelcontextprotocol/inspector`, use HTTP transport with your MCP endpoint URL.
+
+### 1. Start Inspector against a remote/public endpoint
+```bash
+npx -y @modelcontextprotocol/inspector --transport http --server-url "https://your-domain.com/telescope-mcp"
+```
+
+### 2. Start Inspector against a local HTTPS endpoint
+If your local certificate is self-signed (common with `*.test` domains), disable TLS verification for Node in your current shell:
+```bash
+# PowerShell
+$env:NODE_TLS_REJECT_UNAUTHORIZED='0'
+npx -y @modelcontextprotocol/inspector --transport http --server-url "https://your-local-domain.test/telescope-mcp"
+```
+
+### 3. If default inspector ports are busy
+Inspector uses ports `6274` (UI) and `6277` (proxy) by default. If you get "PORT IS IN USE":
+```bash
+# PowerShell
+$env:CLIENT_PORT='6284'
+$env:SERVER_PORT='6287'
+npx -y @modelcontextprotocol/inspector --transport http --server-url "https://your-domain.com/telescope-mcp"
+```
+
+### 4. Optional auth headers
+If your MCP route is protected by middleware, pass headers:
+```bash
+npx -y @modelcontextprotocol/inspector --transport http --server-url "https://your-domain.com/telescope-mcp" --header "Authorization: Bearer YOUR_TOKEN"
+```
+
+### 5. Quick health check
+- `GET /telescope-mcp` returning `405` is expected.
+- Use `POST /telescope-mcp` for MCP JSON-RPC requests.
+
+## Secure Streamable HTTP in IDEs
+
+This package now supports built-in bearer token authentication for the HTTP MCP endpoint.
+
+### 1. Enable auth in Laravel (`.env`)
+```dotenv
+MCP_BEARER_TOKEN=replace-with-a-long-random-token
+```
+
+You can also use `TELESCOPE_MCP_BEARER_TOKEN` instead of `MCP_BEARER_TOKEN`.
+Auth is automatically enabled when one of these token env vars is present.
+If you prefer explicit control, set:
+```dotenv
+TELESCOPE_MCP_AUTH_ENABLED=true
+```
+
+Generate a token example:
+```bash
+php -r "echo bin2hex(random_bytes(32)), PHP_EOL;"
+```
+
+### 2. IDE UI mapping (Streamable HTTP)
+For IDEs that ask fields like:
+- `Name`
+- `Streamable HTTP`
+- `URL`
+- `Bearer token env var`
+- `Headers` / `Headers from environment variables`
+
+Use:
+- `Name`: `laravel-telescope-online` (or any name)
+- `Transport`: `Streamable HTTP`
+- `URL`: `https://your-domain.com/telescope-mcp`
+- `Bearer token env var`: `MCP_BEARER_TOKEN`
+
+If your IDE does not support "Bearer token env var", set headers manually:
+- `Key`: `Authorization`
+- `Value`: `Bearer <your-token>`
+
+If your IDE supports "headers from env variables", prefer:
+- `Key`: `Authorization`
+- `Value`: `Bearer ${MCP_BEARER_TOKEN}`
+
+### 3. Local and online examples
+- Local URL: `https://your-local-domain.test/telescope-mcp`
+- Online URL: `https://your-public-domain.com/telescope-mcp`
+
+Reference: OpenAI Codex MCP docs (`https://developers.openai.com/codex/mcp/`).
+
 
 ## How to Use
 
@@ -284,8 +372,9 @@ Each MCP tool provides:
 
 ## Configuration
 
-* **Authentication**: Protect the MCP endpoint using middleware (e.g., `auth:sanctum`, `auth.basic`).
+* **Authentication**: Use built-in bearer auth with `TELESCOPE_MCP_AUTH_ENABLED=true` and `MCP_BEARER_TOKEN` (or `TELESCOPE_MCP_BEARER_TOKEN`), or protect with Laravel middleware (`auth:sanctum`, `auth.basic`).
 * **Endpoint Path**: Customize `TELESCOPE_MCP_PATH` or modify in `config/telescope-mcp.php`.
+* **Middleware**: Set `TELESCOPE_MCP_MIDDLEWARE` as comma-separated list (e.g., `api,auth:sanctum`).
 * **Logging**: Enable or disable internal MCP logging.
 * **Timeouts & Limits**: Adjust request timeouts and payload limits as needed.
 

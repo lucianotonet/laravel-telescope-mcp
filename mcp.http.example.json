@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "laravel-telescope-local": {
+      "type": "streamable-http",
+      "url": "https://your-local-domain.test/telescope-mcp"
+    },
+    "laravel-telescope-online": {
+      "type": "streamable-http",
+      "url": "https://your-public-domain.com/telescope-mcp"
+    }
+  }
+}
