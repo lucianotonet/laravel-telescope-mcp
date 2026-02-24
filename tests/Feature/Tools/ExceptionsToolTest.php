@@ -89,3 +89,34 @@ test('exceptions tool returns error when id not found', function () {
 
     expect($response->isError())->toBeTrue();
 });
+
+
+test('exceptions tool filters by request id using repository tags', function () {
+    $entry = new EntryResult(
+        'ex-req-1',
+        null,
+        'batch-req-1',
+        'exception',
+        null,
+        [
+            'class' => \RuntimeException::class,
+            'message' => 'Request scoped exception',
+            'file' => '/app/Request.php',
+            'line' => 99,
+        ],
+        now(),
+        []
+    );
+
+    $repository = Mockery::mock(EntriesRepository::class);
+    $repository->shouldReceive('get')
+        ->with(EntryType::EXCEPTION, Mockery::type(EntryQueryOptions::class))
+        ->once()
+        ->andReturn(collect([$entry]));
+
+    $tool = new ExceptionsTool();
+    $response = $tool->handle(new Request(['request_id' => 'request-uuid-1']), $repository);
+
+    expect($response->content()->toArray()['text'] ?? '')->toContain('Exceptions for Request: request-uuid-1');
+    expect($response->content()->toArray()['text'] ?? '')->toContain('Request scoped exception');
+});
