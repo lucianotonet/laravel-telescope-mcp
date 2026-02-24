@@ -77,7 +77,7 @@ class QueriesTool extends Tool
             $content = is_array($entry->content) ? $entry->content : [];
             $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
 
-            $duration = $content['duration'] ?? 0;
+            $duration = $content['duration'] ?? $content['time'] ?? 0;
             $isSlow = $duration > 100; // Queries taking more than 100ms are considered slow
 
             // Skip if we're only looking for slow queries and this one isn't slow

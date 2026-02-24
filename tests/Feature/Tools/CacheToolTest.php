@@ -165,3 +165,31 @@ test('cache tool lists cache for request when request_id is provided', function 
     expect($response)->toBeInstanceOf(Response::class);
     expect($response->content()->toArray()['text'] ?? '')->toContain('No cache operations found for request');
 });
+
+test('cache tool filters by operation and key without tags', function () {
+    $entries = collect([
+        new EntryResult('cache-hit', null, 'batch-1', 'cache', null, [
+            'type' => 'hit',
+            'key' => 'users:1',
+            'duration' => 0.1,
+        ], now(), []),
+        new EntryResult('cache-miss', null, 'batch-1', 'cache', null, [
+            'type' => 'miss',
+            'key' => 'users:2',
+            'duration' => 0.1,
+        ], now(), []),
+    ]);
+
+    $repository = Mockery::mock(EntriesRepository::class);
+    $repository->shouldReceive('get')
+        ->with(EntryType::CACHE, Mockery::type(EntryQueryOptions::class))
+        ->once()
+        ->andReturn($entries);
+
+    $tool = new CacheTool();
+    $response = $tool->handle(new Request(['operation' => 'hit', 'key' => 'users:1']), $repository);
+
+    $text = $response->content()->toArray()['text'] ?? '';
+    expect($text)->toContain('cache-hit');
+    expect($text)->not->toContain('cache-miss');
+});

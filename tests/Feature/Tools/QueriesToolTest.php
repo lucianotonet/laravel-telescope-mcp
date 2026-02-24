@@ -89,3 +89,33 @@ test('queries tool returns error when id not found', function () {
 
     expect($response->isError())->toBeTrue();
 });
+
+test('queries tool slow filter supports time field', function () {
+    $entries = collect([
+        new EntryResult('q-fast', null, 'batch-1', 'query', null, [
+            'sql' => 'select 1',
+            'time' => 10,
+            'connection' => 'mysql',
+            'created_at' => now()->toIso8601String(),
+        ], now(), []),
+        new EntryResult('q-slow', null, 'batch-1', 'query', null, [
+            'sql' => 'select sleep(1)',
+            'time' => 250,
+            'connection' => 'mysql',
+            'created_at' => now()->toIso8601String(),
+        ], now(), []),
+    ]);
+
+    $repository = Mockery::mock(EntriesRepository::class);
+    $repository->shouldReceive('get')
+        ->with(EntryType::QUERY, Mockery::type(EntryQueryOptions::class))
+        ->once()
+        ->andReturn($entries);
+
+    $tool = new QueriesTool();
+    $response = $tool->handle(new Request(['slow' => true]), $repository);
+
+    $text = $response->content()->toArray()['text'] ?? '';
+    expect($text)->toContain('q-slow');
+    expect($text)->not->toContain('q-fast');
+});

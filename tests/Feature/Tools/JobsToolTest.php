@@ -88,3 +88,33 @@ test('jobs tool returns error when id not found', function () {
 
     expect($response->isError())->toBeTrue();
 });
+
+test('jobs tool filters by status', function () {
+    $entries = collect([
+        new EntryResult('job-1', null, 'batch-1', 'job', null, [
+            'name' => 'JobOne',
+            'status' => 'processed',
+            'queue' => 'default',
+            'attempts' => 1,
+        ], now(), []),
+        new EntryResult('job-2', null, 'batch-2', 'job', null, [
+            'name' => 'JobTwo',
+            'status' => 'failed',
+            'queue' => 'default',
+            'attempts' => 1,
+        ], now(), []),
+    ]);
+
+    $repository = Mockery::mock(EntriesRepository::class);
+    $repository->shouldReceive('get')
+        ->with(EntryType::JOB, Mockery::type(EntryQueryOptions::class))
+        ->once()
+        ->andReturn($entries);
+
+    $tool = new JobsTool();
+    $response = $tool->handle(new Request(['status' => 'processed']), $repository);
+
+    $text = $response->content()->toArray()['text'] ?? '';
+    expect($text)->toContain('job-1');
+    expect($text)->not->toContain('job-2');
+});
