@@ -72,7 +72,8 @@ class RequestsTool extends Tool
             $method = (string) ($content['method'] ?? 'Unknown');
             $status = (int) ($content['response_status'] ?? 0);
             $uri = (string) ($content['uri'] ?? 'Unknown');
-            $uriPath = parse_url($uri, PHP_URL_PATH) ?? $uri;
+            $parsedPath = parse_url($uri, PHP_URL_PATH);
+            $uriPath = ($parsedPath === false || $parsedPath === null) ? $uri : $parsedPath;
 
             if ($methodFilter !== null && strtoupper((string) $methodFilter) !== strtoupper($method)) {
                 continue;

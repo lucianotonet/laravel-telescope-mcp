@@ -144,3 +144,29 @@ test('requests tool filters by method status and path', function () {
     expect($text)->toContain('req-1');
     expect($text)->not->toContain('req-2');
 });
+
+test('requests tool handles malformed uri path parsing fallback', function () {
+    $malformedUri = 'http://[::1';
+
+    $entries = collect([
+        new EntryResult('req-bad-uri', null, 'batch-1', 'request', null, [
+            'method' => 'GET',
+            'uri' => $malformedUri,
+            'response_status' => 200,
+            'duration' => 1,
+            'created_at' => now()->toIso8601String(),
+        ], now(), []),
+    ]);
+
+    $repository = Mockery::mock(EntriesRepository::class);
+    $repository->shouldReceive('get')
+        ->with(EntryType::REQUEST, Mockery::type(EntryQueryOptions::class))
+        ->once()
+        ->andReturn($entries);
+
+    $tool = new RequestsTool();
+    $response = $tool->handle(new Request(['path' => $malformedUri]), $repository);
+
+    $text = $response->content()->toArray()['text'] ?? '';
+    expect($text)->toContain('req-bad-uri');
+});
