@@ -77,7 +77,7 @@ class QueriesTool extends Tool
             $content = is_array($entry->content) ? $entry->content : [];
             $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
 
-            $duration = $content['duration'] ?? 0;
+            $duration = $content['duration'] ?? $content['time'] ?? 0;
             $isSlow = $duration > 100; // Queries taking more than 100ms are considered slow
 
             // Skip if we're only looking for slow queries and this one isn't slow
@@ -235,12 +235,13 @@ class QueriesTool extends Tool
 
         $content = is_array($entry->content) ? $entry->content : [];
         $createdAt = isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown';
+        $duration = $content['duration'] ?? $content['time'] ?? 0;
 
         // Detailed formatting of the query
         $output = "Database Query Details:\n\n";
         $output .= "ID: {$entry->id}\n";
         $output .= "Connection: " . ($content['connection'] ?? 'default') . "\n";
-        $output .= "Duration: " . number_format(($content['time'] ?? 0), 2) . "ms\n";
+        $output .= "Duration: " . number_format($duration, 2) . "ms\n";
         $output .= "Created At: {$createdAt}\n\n";
 
         // Location if available
@@ -269,7 +270,7 @@ class QueriesTool extends Tool
         $combinedText = $output . "\n\n--- JSON Data ---\n" . json_encode([
             'id' => $entry->id,
             'connection' => $content['connection'] ?? 'default',
-            'duration' => $content['time'] ?? 0,
+            'duration' => $duration,
             'created_at' => $createdAt,
             'location' => [
                 'file' => $content['file'] ?? null,
