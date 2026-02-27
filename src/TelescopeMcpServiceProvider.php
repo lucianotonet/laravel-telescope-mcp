@@ -40,8 +40,6 @@ class TelescopeMcpServiceProvider extends ServiceProvider
                 InstallMcpCommand::class,
                 McpServerCommand::class,
             ]);
-
-            $this->checkLaravelBoost();
         }
 
         // Configurar logger
@@ -50,16 +48,6 @@ class TelescopeMcpServiceProvider extends ServiceProvider
         // Registrar rota de teste para gerar entradas no Telescope
         if (config('telescope-mcp.routes', true)) {
             $this->registerTestRoute();
-        }
-    }
-
-    protected function checkLaravelBoost()
-    {
-        if (in_array('package:discover', $_SERVER['argv'] ?? [])) {
-            if (class_exists(\Laravel\Boost\BoostServiceProvider::class)) {
-                $msg = "\n\033[33mLaravel Boost was detected. For better integration with Boost, consider using the dedicated package: lucianotonet/laravel-boost-telescope (instead of this one).\033[0m\n\033[33m  composer require lucianotonet/laravel-boost-telescope --dev\033[0m\n\n";
-                fwrite(STDERR, $msg);
-            }
         }
     }
 
