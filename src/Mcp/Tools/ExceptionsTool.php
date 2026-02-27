@@ -120,15 +120,25 @@ class ExceptionsTool extends Tool
 
     protected function listExceptionsForRequest(string $requestId, Request $request, EntriesRepository $repository): Response
     {
-        $batchId = $this->getBatchIdForRequest($requestId);
-
-        if (!$batchId) {
-            return Response::error("Request not found or has no batch ID: {$requestId}");
-        }
-
         $limit = min($request->integer('limit', 50), 100);
 
-        $entries = $this->getEntriesByBatchId($batchId, 'exception', $limit);
+        $options = new EntryQueryOptions();
+        $options->limit($limit);
+        $options->tag('request:' . $requestId);
+
+        $entries = $repository->get(EntryType::EXCEPTION, $options);
+
+        $batchId = null;
+
+        if (empty($entries)) {
+            $batchId = $this->getBatchIdForRequest($requestId);
+
+            if (!$batchId) {
+                return Response::error("Request not found or has no batch ID: {$requestId}");
+            }
+
+            $entries = $this->getEntriesByBatchId($batchId, 'exception', $limit);
+        }
 
         if (empty($entries)) {
             return Response::text("No exceptions found for request: {$requestId}");
