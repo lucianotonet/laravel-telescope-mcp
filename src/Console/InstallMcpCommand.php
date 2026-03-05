@@ -5,6 +5,7 @@ namespace LucianoTonet\TelescopeMcp\Console;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
 
+use function Laravel\Prompts\confirm;
 use function Laravel\Prompts\multiselect;
 
 class InstallMcpCommand extends Command
@@ -16,7 +17,8 @@ class InstallMcpCommand extends Command
      */
     protected $signature = 'telescope-mcp:install
                             {--force : Overwrite existing MCP configuration}
-                            {--global : Install globally instead of project-specific}';
+                            {--global : Install globally instead of project-specific}
+                            {--skills : Install AI agent skill files for better debugging assistance}';
 
     /**
      * The console command description.
@@ -115,10 +117,42 @@ class InstallMcpCommand extends Command
     ];
 
     /**
+     * AI agent skill installation paths
+     *
+     * @var array
+     */
+    protected array $aiAgents = [
+        'claude' => [
+            'name' => 'Claude Code',
+            'path' => '.claude/skills',
+            'detect' => '.claude',
+        ],
+        'cursor' => [
+            'name' => 'Cursor',
+            'path' => '.cursor/skills',
+            'detect' => '.cursor',
+        ],
+        'copilot' => [
+            'name' => 'GitHub Copilot',
+            'path' => '.github/skills',
+            'detect' => '.github',
+        ],
+        'generic' => [
+            'name' => 'Generic (.ai/)',
+            'path' => '.ai/skills',
+            'detect' => null,
+        ],
+    ];
+
+    /**
      * Execute the console command.
      */
     public function handle(): int
     {
+        if ($this->option('skills')) {
+            return $this->installSkills();
+        }
+
         $this->components->info('Laravel Telescope MCP Installation');
         $this->newLine();
 
@@ -577,5 +611,189 @@ class InstallMcpCommand extends Command
         }
 
         return $path;
+    }
+
+    /**
+     * Install AI agent skill files
+     */
+    protected function installSkills(): int
+    {
+        $this->components->info('Laravel Telescope MCP - AI Agent Skills Installation');
+        $this->newLine();
+
+        $sourcePath = realpath(__DIR__ . '/../../resources/boost/skills/telescope-mcp-debugging');
+
+        if (!$sourcePath || !File::exists($sourcePath . '/SKILL.md')) {
+            $this->components->error('Skill source files not found. The package may be corrupted.');
+            return self::FAILURE;
+        }
+
+        // Detect available agents
+        $detectedAgents = $this->detectAiAgents();
+
+        // Build options for multiselect
+        $options = [];
+        foreach ($this->aiAgents as $key => $agent) {
+            $label = $agent['name'];
+            if (in_array($key, $detectedAgents)) {
+                $label .= ' (Detected)';
+            }
+            $options[$key] = $label;
+        }
+
+        if (function_exists('Laravel\Prompts\multiselect')) {
+            $selectedAgents = multiselect(
+                label: 'Which AI agents would you like to install skills for?',
+                options: $options,
+                default: !empty($detectedAgents) ? $detectedAgents : ['generic'],
+                hint: 'Use space to select, enter to submit'
+            );
+        } else {
+            $selectedAgents = !empty($detectedAgents) ? $detectedAgents : ['generic'];
+        }
+
+        if (empty($selectedAgents)) {
+            $this->components->warn('No agents selected. Installation cancelled.');
+            return self::FAILURE;
+        }
+
+        // Install skills for each selected agent
+        $successCount = 0;
+        $installedPaths = [];
+
+        foreach ($selectedAgents as $agentKey) {
+            $result = $this->installSkillsForAgent($agentKey, $sourcePath);
+            if ($result) {
+                $successCount++;
+                $installedPaths[] = $this->aiAgents[$agentKey]['path'] . '/telescope-mcp-debugging/';
+            }
+        }
+
+        $this->newLine();
+
+        if ($successCount > 0) {
+            $this->components->info("Successfully installed skills for {$successCount} agent(s)");
+            $this->newLine();
+
+            // Offer to add to .gitignore
+            $this->offerGitignoreUpdate($installedPaths);
+        } else {
+            $this->components->error('No skills were installed.');
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Detect AI agents by checking for their directories
+     */
+    protected function detectAiAgents(): array
+    {
+        $detected = [];
+
+        foreach ($this->aiAgents as $key => $agent) {
+            if ($agent['detect'] === null) {
+                continue;
+            }
+
+            if (File::isDirectory(base_path($agent['detect']))) {
+                $detected[] = $key;
+            }
+        }
+
+        return $detected;
+    }
+
+    /**
+     * Install skill files for a specific AI agent
+     */
+    protected function installSkillsForAgent(string $agentKey, string $sourcePath): bool
+    {
+        $agent = $this->aiAgents[$agentKey];
+        $targetDir = base_path($agent['path'] . '/telescope-mcp-debugging');
+        $force = $this->option('force');
+
+        try {
+            // Check if already exists
+            if (File::exists($targetDir . '/SKILL.md') && !$force) {
+                $this->components->warn("Skills already exist for {$agent['name']} at {$agent['path']}/telescope-mcp-debugging/");
+                $this->line('  Use --force to overwrite.');
+                return false;
+            }
+
+            // Create target directory
+            if (!File::isDirectory($targetDir)) {
+                File::makeDirectory($targetDir, 0o755, true);
+            }
+
+            // Copy SKILL.md
+            File::copy($sourcePath . '/SKILL.md', $targetDir . '/SKILL.md');
+
+            // Copy references directory if it exists
+            $referencesSource = $sourcePath . '/references';
+            if (File::isDirectory($referencesSource)) {
+                $referencesTarget = $targetDir . '/references';
+                if (!File::isDirectory($referencesTarget)) {
+                    File::makeDirectory($referencesTarget, 0o755, true);
+                }
+
+                foreach (File::files($referencesSource) as $file) {
+                    File::copy($file->getPathname(), $referencesTarget . '/' . $file->getFilename());
+                }
+            }
+
+            $this->components->task(
+                "Installed skills for {$agent['name']}",
+                fn() => true
+            );
+
+            return true;
+        } catch (\Exception $e) {
+            $this->components->error("Failed to install skills for {$agent['name']}: {$e->getMessage()}");
+            return false;
+        }
+    }
+
+    /**
+     * Offer to add installed skill paths to .gitignore
+     */
+    protected function offerGitignoreUpdate(array $paths): void
+    {
+        $gitignorePath = base_path('.gitignore');
+
+        if (!File::exists($gitignorePath)) {
+            return;
+        }
+
+        $shouldUpdate = function_exists('Laravel\Prompts\confirm')
+            ? confirm('Would you like to add the skill paths to .gitignore?', default: false)
+            : $this->confirm('Would you like to add the skill paths to .gitignore?', false);
+
+        if (!$shouldUpdate) {
+            return;
+        }
+
+        $gitignoreContent = File::get($gitignorePath);
+        $newEntries = [];
+
+        foreach ($paths as $path) {
+            $entry = '/' . $path;
+            if (!str_contains($gitignoreContent, $entry)) {
+                $newEntries[] = $entry;
+            }
+        }
+
+        if (empty($newEntries)) {
+            $this->line('  All paths are already in .gitignore.');
+            return;
+        }
+
+        $append = "\n# Telescope MCP AI Skills\n" . implode("\n", $newEntries) . "\n";
+        File::append($gitignorePath, $append);
+
+        $this->components->task(
+            'Updated .gitignore with skill paths',
+            fn() => true
+        );
     }
 }
