@@ -62,7 +62,7 @@ Only proceed with tool-driven analysis after installation/configuration is compl
 
 ### Common patterns
 - `id` (string): fetch a specific entry when you already have its ID.
-- `limit` (integer, default 50, max 100): cap result volume for focused analysis.
+- `limit` (integer, default 50; max 100 when enforced by implementation): cap result volume for focused analysis.
 - `request_id` (string): correlate entries that belong to the same HTTP request/batch context (available in selected tools).
 
 ### Request and performance analysis
