@@ -88,3 +88,34 @@ test('jobs tool returns error when id not found', function () {
 
     expect($response->isError())->toBeTrue();
 });
+
+test('jobs tool details handle array payloads without string conversion errors', function () {
+    $entry = new EntryResult(
+        'job-array',
+        null,
+        'batch-1',
+        'job',
+        null,
+        [
+            'name' => 'App\Jobs\SyncUsers',
+            'status' => 'failed',
+            'queue' => 'imports',
+            'attempts' => 3,
+            'data' => ['tenant' => 'acme', 'ids' => [1, 2]],
+            'exception' => ['message' => 'Boom', 'code' => 500],
+        ],
+        now(),
+        []
+    );
+
+    $repository = Mockery::mock(EntriesRepository::class);
+    $repository->shouldReceive('find')->with('job-array')->once()->andReturn($entry);
+
+    $tool = new JobsTool();
+    $response = $tool->handle(new Request(['id' => 'job-array']), $repository);
+
+    $text = $response->content()->toArray()['text'] ?? '';
+    expect($text)->toContain('"tenant": "acme"');
+    expect($text)->toContain('"message": "Boom"');
+    expect($response->isError())->toBeFalse();
+});

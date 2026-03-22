@@ -53,22 +53,12 @@ class RequestsTool extends Tool
     protected function listRequests(Request $request, EntriesRepository $repository): Response
     {
         $limit = min($request->integer('limit', 50), 100);
-        $options = new EntryQueryOptions();
-        $options->limit($limit);
+        $methodFilter = $request->get('method');
+        $statusFilter = $request->get('status');
+        $pathFilter = $request->get('path');
 
-        if ($method = $request->get('method')) {
-            $options->tag('method:' . strtoupper($method));
-        }
-        if ($status = $request->get('status')) {
-            $options->tag('status:' . $status);
-        }
-        if ($path = $request->get('path')) {
-            $uuids = $this->getRequestUuidsByPath($path, $limit);
-            if (empty($uuids)) {
-                return Response::text("No requests found for path: {$path}");
-            }
-            $options->uuids($uuids);
-        }
+        $options = new EntryQueryOptions();
+        $options->limit(($methodFilter !== null || $statusFilter !== null || $pathFilter !== null) ? 100 : $limit);
 
         $entries = $repository->get(EntryType::REQUEST, $options);
         if (empty($entries)) {
@@ -78,15 +68,40 @@ class RequestsTool extends Tool
         $requests = [];
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $method = (string) ($content['method'] ?? 'Unknown');
+            $status = (int) ($content['response_status'] ?? 0);
+            $uri = (string) ($content['uri'] ?? 'Unknown');
+            $parsedPath = parse_url($uri, PHP_URL_PATH);
+            $uriPath = ($parsedPath === false || $parsedPath === null) ? $uri : $parsedPath;
+
+            if ($methodFilter !== null && strcasecmp((string) $methodFilter, $method) !== 0) {
+                continue;
+            }
+
+            if ($statusFilter !== null && (int) $statusFilter !== $status) {
+                continue;
+            }
+
+            if ($pathFilter !== null) {
+                $normalizedFilterPath = '/' . ltrim((string) $pathFilter, '/');
+                $normalizedUriPath = '/' . ltrim($uriPath, '/');
+
+                if ($normalizedFilterPath !== $normalizedUriPath) {
+                    continue;
+                }
+            }
+
             $requests[] = [
                 'id' => $entry->id,
-                'method' => $content['method'] ?? 'Unknown',
-                'uri' => $content['uri'] ?? 'Unknown',
-                'status' => $content['response_status'] ?? 0,
+                'method' => $method,
+                'uri' => $uri,
+                'status' => $status,
                 'duration' => $content['duration'] ?? 0,
                 'created_at' => isset($content['created_at']) ? DateFormatter::format($content['created_at']) : 'Unknown',
             ];
         }
+
+        $requests = array_slice($requests, 0, $limit);
 
         $table = "HTTP Requests:\n\n";
         $table .= sprintf("%-5s %-7s %-50s %-7s %-10s %-20s\n", "ID", "Method", "URI", "Status", "Time (ms)", "Created At");

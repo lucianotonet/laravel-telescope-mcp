@@ -52,15 +52,11 @@ class CacheTool extends Tool
     protected function listCache(Request $request, EntriesRepository $repository): Response
     {
         $limit = min($request->integer('limit', 50), 100);
-        $options = new EntryQueryOptions();
-        $options->limit($limit);
+        $operationFilter = $request->get('operation');
+        $keyFilter = $request->get('key');
 
-        if ($operation = $request->get('operation')) {
-            $options->tag('operation:' . strtolower($operation));
-        }
-        if ($key = $request->get('key')) {
-            $options->tag('key:' . $key);
-        }
+        $options = new EntryQueryOptions();
+        $options->limit(($operationFilter !== null || $keyFilter !== null) ? 100 : $limit);
 
         $entries = $repository->get(EntryType::CACHE, $options);
         if (empty($entries)) {
@@ -71,15 +67,27 @@ class CacheTool extends Tool
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
             $createdAt = DateFormatter::format($entry->createdAt);
+            $operation = (string) ($content['type'] ?? 'Unknown');
+            $key = (string) ($content['key'] ?? 'Unknown');
+
+            if ($operationFilter !== null && strcasecmp((string) $operationFilter, $operation) !== 0) {
+                continue;
+            }
+
+            if ($keyFilter !== null && !str_contains(strtolower($key), strtolower((string) $keyFilter))) {
+                continue;
+            }
 
             $operations[] = [
                 'id' => $entry->id,
-                'operation' => $content['type'] ?? 'Unknown',
-                'key' => $content['key'] ?? 'Unknown',
+                'operation' => $operation,
+                'key' => $key,
                 'duration' => $content['duration'] ?? 0,
                 'created_at' => $createdAt,
             ];
         }
+
+        $operations = array_slice($operations, 0, $limit);
 
         $table = "Cache Operations:\n\n";
         $table .= sprintf(

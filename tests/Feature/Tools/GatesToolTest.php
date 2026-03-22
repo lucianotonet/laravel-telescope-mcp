@@ -146,3 +146,67 @@ test('gates tool shows denied status correctly', function () {
 
     expect($response->content()->toArray()['text'] ?? '')->toContain('Denied');
 });
+
+test('gates tool lists gate checks for request_id', function () {
+    $repository = Mockery::mock(EntriesRepository::class);
+
+    \Illuminate\Support\Facades\DB::shouldReceive('connection')->andReturnSelf();
+    \Illuminate\Support\Facades\DB::shouldReceive('table')->with('telescope_entries')->andReturnSelf();
+    \Illuminate\Support\Facades\DB::shouldReceive('where')->with('uuid', 'req-123')->once()->andReturnSelf();
+    \Illuminate\Support\Facades\DB::shouldReceive('first')->once()->andReturn((object) ['batch_id' => 'batch-123']);
+    \Illuminate\Support\Facades\DB::shouldReceive('where')->with('batch_id', 'batch-123')->once()->andReturnSelf();
+    \Illuminate\Support\Facades\DB::shouldReceive('where')->with('type', 'gate')->once()->andReturnSelf();
+    \Illuminate\Support\Facades\DB::shouldReceive('orderBy')->with('sequence', 'asc')->once()->andReturnSelf();
+    \Illuminate\Support\Facades\DB::shouldReceive('limit')->with(50)->once()->andReturnSelf();
+    \Illuminate\Support\Facades\DB::shouldReceive('get')->once()->andReturn(collect([
+        (object) [
+            'uuid' => 'gate-1',
+            'batch_id' => 'batch-123',
+            'type' => 'gate',
+            'content' => json_encode([
+                'ability' => 'deploy',
+                'result' => false,
+                'user' => ['email' => 'ops@example.com'],
+            ], JSON_INVALID_UTF8_SUBSTITUTE),
+            'created_at' => now(),
+        ],
+    ]));
+
+    $tool = new GatesTool();
+    $response = $tool->handle(new Request(['request_id' => 'req-123']), $repository);
+
+    $text = $response->content()->toArray()['text'] ?? '';
+    expect($text)->toContain('Gate Checks for Request: req-123');
+    expect($text)->toContain('deploy');
+    expect($text)->toContain('ops@example.com');
+});
+
+test('gates tool details handle structured values safely', function () {
+    $entry = new EntryResult(
+        'gate-structured',
+        null,
+        'batch-1',
+        'gate',
+        null,
+        [
+            'ability' => ['name' => 'publish'],
+            'result' => true,
+            'user' => ['email' => 'author@example.com'],
+            'arguments' => ['post_id' => 99],
+            'context' => ['scope' => 'admin'],
+        ],
+        now(),
+        []
+    );
+
+    $repository = Mockery::mock(EntriesRepository::class);
+    $repository->shouldReceive('find')->with('gate-structured')->once()->andReturn($entry);
+
+    $tool = new GatesTool();
+    $response = $tool->handle(new Request(['id' => 'gate-structured']), $repository);
+
+    $text = $response->content()->toArray()['text'] ?? '';
+    expect($text)->toContain('"name": "publish"');
+    expect($text)->toContain('"email": "author@example.com"');
+    expect($response->isError())->toBeFalse();
+});

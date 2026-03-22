@@ -45,15 +45,11 @@ class JobsTool extends Tool
     protected function listJobs(Request $request, EntriesRepository $repository): Response
     {
         $limit = min($request->integer('limit', 50), 100);
-        $options = new EntryQueryOptions();
-        $options->limit($limit);
+        $statusFilter = $request->get('status');
+        $queueFilter = $request->get('queue');
 
-        if ($status = $request->get('status')) {
-            $options->tag($status);
-        }
-        if ($queue = $request->get('queue')) {
-            $options->tag($queue);
-        }
+        $options = new EntryQueryOptions();
+        $options->limit(($statusFilter !== null || $queueFilter !== null) ? 100 : $limit);
 
         $entries = $repository->get(EntryType::JOB, $options);
         if (empty($entries)) {
@@ -63,15 +59,28 @@ class JobsTool extends Tool
         $jobs = [];
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $status = (string) ($content['status'] ?? 'Unknown');
+            $queue = (string) ($content['queue'] ?? 'default');
+
+            if ($statusFilter !== null && strcasecmp((string) $statusFilter, $status) !== 0) {
+                continue;
+            }
+
+            if ($queueFilter !== null && strcasecmp((string) $queueFilter, $queue) !== 0) {
+                continue;
+            }
+
             $jobs[] = [
                 'id' => $entry->id,
                 'name' => $content['name'] ?? 'Unknown',
-                'status' => $content['status'] ?? 'Unknown',
-                'queue' => $content['queue'] ?? 'default',
+                'status' => $status,
+                'queue' => $queue,
                 'attempts' => $content['attempts'] ?? 0,
                 'created_at' => DateFormatter::format($entry->createdAt),
             ];
         }
+
+        $jobs = array_slice($jobs, 0, $limit);
 
         $table = "Jobs:\n\n";
         $table .= sprintf("%-5s %-40s %-10s %-15s %-8s %-20s\n", "ID", "Name", "Status", "Queue", "Attempts", "Created At");
@@ -106,18 +115,18 @@ class JobsTool extends Tool
 
         $output = "Job Details:\n\n";
         $output .= "ID: {$entry->id}\n";
-        $output .= "Name: " . ($content['name'] ?? 'Unknown') . "\n";
-        $output .= "Status: " . ($content['status'] ?? 'Unknown') . "\n";
-        $output .= "Queue: " . ($content['queue'] ?? 'default') . "\n";
-        $output .= "Attempts: " . ($content['attempts'] ?? 0) . "\n";
+        $output .= "Name: " . $this->stringifyValue($content['name'] ?? 'Unknown') . "\n";
+        $output .= "Status: " . $this->stringifyValue($content['status'] ?? 'Unknown') . "\n";
+        $output .= "Queue: " . $this->stringifyValue($content['queue'] ?? 'default') . "\n";
+        $output .= "Attempts: " . $this->stringifyValue($content['attempts'] ?? 0) . "\n";
         $output .= "Created At: {$createdAt}\n\n";
 
         if (isset($content['data']) && !empty($content['data'])) {
-            $output .= "Data:\n" . json_encode($content['data'], JSON_PRETTY_PRINT) . "\n\n";
+            $output .= "Data:\n" . $this->encodeJson($content['data']) . "\n\n";
         }
 
         if (isset($content['exception']) && !empty($content['exception'])) {
-            $output .= "Exception:\n" . $content['exception'] . "\n";
+            $output .= "Exception:\n" . $this->stringifyValue($content['exception']) . "\n";
         }
 
         $jsonData = [
@@ -129,7 +138,29 @@ class JobsTool extends Tool
             'created_at' => $createdAt,
         ];
 
-        $output .= "\n\n--- JSON Data ---\n" . json_encode($jsonData, JSON_PRETTY_PRINT);
+        if (array_key_exists('data', $content)) {
+            $jsonData['data'] = $content['data'];
+        }
+
+        if (array_key_exists('exception', $content)) {
+            $jsonData['exception'] = $content['exception'];
+        }
+
+        $output .= "\n\n--- JSON Data ---\n" . $this->encodeJson($jsonData);
         return Response::text($output);
+    }
+
+    protected function stringifyValue(mixed $value): string
+    {
+        if (is_array($value) || is_object($value)) {
+            return $this->encodeJson($value);
+        }
+
+        return (string) $value;
+    }
+
+    protected function encodeJson(mixed $value): string
+    {
+        return json_encode($value, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_INVALID_UTF8_SUBSTITUTE) ?: '{}';
     }
 }
