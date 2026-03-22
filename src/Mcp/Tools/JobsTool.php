@@ -45,15 +45,11 @@ class JobsTool extends Tool
     protected function listJobs(Request $request, EntriesRepository $repository): Response
     {
         $limit = min($request->integer('limit', 50), 100);
-        $options = new EntryQueryOptions();
-        $options->limit($limit);
+        $statusFilter = $request->get('status');
+        $queueFilter = $request->get('queue');
 
-        if ($status = $request->get('status')) {
-            $options->tag($status);
-        }
-        if ($queue = $request->get('queue')) {
-            $options->tag($queue);
-        }
+        $options = new EntryQueryOptions();
+        $options->limit(($statusFilter !== null || $queueFilter !== null) ? 100 : $limit);
 
         $entries = $repository->get(EntryType::JOB, $options);
         if (empty($entries)) {
@@ -63,15 +59,28 @@ class JobsTool extends Tool
         $jobs = [];
         foreach ($entries as $entry) {
             $content = is_array($entry->content) ? $entry->content : [];
+            $status = (string) ($content['status'] ?? 'Unknown');
+            $queue = (string) ($content['queue'] ?? 'default');
+
+            if ($statusFilter !== null && strtolower((string) $statusFilter) !== strtolower($status)) {
+                continue;
+            }
+
+            if ($queueFilter !== null && strtolower((string) $queueFilter) !== strtolower($queue)) {
+                continue;
+            }
+
             $jobs[] = [
                 'id' => $entry->id,
                 'name' => $content['name'] ?? 'Unknown',
-                'status' => $content['status'] ?? 'Unknown',
-                'queue' => $content['queue'] ?? 'default',
+                'status' => $status,
+                'queue' => $queue,
                 'attempts' => $content['attempts'] ?? 0,
                 'created_at' => DateFormatter::format($entry->createdAt),
             ];
         }
+
+        $jobs = array_slice($jobs, 0, $limit);
 
         $table = "Jobs:\n\n";
         $table .= sprintf("%-5s %-40s %-10s %-15s %-8s %-20s\n", "ID", "Name", "Status", "Queue", "Attempts", "Created At");
