@@ -79,31 +79,3 @@ test('logs tool returns error when id not found', function () {
 
     expect($response->isError())->toBeTrue();
 });
-
-
-test('logs tool applies level filter tags before fetching entries', function () {
-    $entry = new EntryResult(
-        'log-error',
-        null,
-        'batch-1',
-        'log',
-        null,
-        ['level' => 'error', 'message' => 'Important error'],
-        now(),
-        []
-    );
-
-    $repository = Mockery::mock(EntriesRepository::class);
-    $repository->shouldReceive('get')
-        ->with(EntryType::LOG, Mockery::on(function (EntryQueryOptions $options) {
-            $tags = collect((new ReflectionObject($options))->getProperty('tags')->getValue($options));
-            return $tags->contains('level:error');
-        }))
-        ->once()
-        ->andReturn(collect([$entry]));
-
-    $tool = new LogsTool();
-    $response = $tool->handle(new Request(['level' => 'error']), $repository);
-
-    expect($response->content()->toArray()['text'] ?? '')->toContain('Important error');
-});

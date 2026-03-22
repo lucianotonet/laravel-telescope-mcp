@@ -58,10 +58,6 @@ class LogsTool extends Tool
         $options = new EntryQueryOptions();
         $options->limit($limit);
 
-        if ($levelFilter = $request->get('level')) {
-            $options->tag('level:' . strtolower($levelFilter));
-        }
-
         // Note: Telescope doesn't tag logs by default, so we fetch all and filter manually
         $entries = $repository->get(EntryType::LOG, $options);
         if (empty($entries)) {

@@ -127,8 +127,7 @@ class ExceptionsTool extends Tool
         $options->tag('request:' . $requestId);
 
         $entries = $repository->get(EntryType::EXCEPTION, $options);
-
-        $batchId = null;
+        $batchId = $entries[0]->batchId ?? null;
 
         if (empty($entries)) {
             $batchId = $this->getBatchIdForRequest($requestId);
