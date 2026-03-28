@@ -16,7 +16,7 @@ Telescope MCP exposes all Laravel Telescope telemetry data via the Model Context
 ## Requirements
 
 - PHP 8.3+
-- Laravel 11 or 12
+- Laravel 11, 12 or 13
 - Laravel Telescope 5.0+
 
 > [!IMPORTANT]
