@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: PHP ${{ matrix.php }} - Laravel ${{ matrix.laravel }}
+    name: PHP ${{ matrix.php }} - Laravel ${{ matrix.laravel }} - MCP ${{ matrix.mcp }}
     runs-on: ubuntu-latest
 
     strategy:
@@ -16,6 +16,7 @@ jobs:
       matrix:
         php: ['8.3']
         laravel: ['11.*', '12.*', '13.*']
+        mcp: ['^0.6.0', '^0.7.0']
         include:
           - laravel: 11.*
             testbench: 9.*
@@ -44,14 +45,15 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ steps.composer-cache.outputs.dir }}
-          key: ${{ runner.os }}-php-${{ matrix.php }}-laravel-${{ matrix.laravel }}-${{ hashFiles('**/composer.lock') }}
+          key: ${{ runner.os }}-php-${{ matrix.php }}-laravel-${{ matrix.laravel }}-mcp-${{ matrix.mcp }}-${{ hashFiles('**/composer.lock') }}
           restore-keys: |
+            ${{ runner.os }}-php-${{ matrix.php }}-laravel-${{ matrix.laravel }}-mcp-${{ matrix.mcp }}-
             ${{ runner.os }}-php-${{ matrix.php }}-laravel-${{ matrix.laravel }}-
             ${{ runner.os }}-php-${{ matrix.php }}-
 
       - name: Install Composer dependencies
         run: |
-          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" --dev --no-interaction --no-update
+          composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" "laravel/mcp:${{ matrix.mcp }}" --dev --no-interaction --no-update
           composer update --prefer-dist --no-progress
 
       - name: Run Pest Tests

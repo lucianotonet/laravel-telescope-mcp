@@ -2,6 +2,7 @@
 
 use Laravel\Telescope\Contracts\EntriesRepository;
 use LucianoTonet\TelescopeMcp\Console\McpServerCommand;
+use Symfony\Component\Process\Process;
 
 test('mcp server command is registered in application', function () {
     $commands = $this->app->make(\Illuminate\Contracts\Console\Kernel::class)->all();
@@ -36,4 +37,30 @@ test('mcp server command handle returns failure when transport throws', function
     // Just verify the command can be instantiated and has the correct signature
     $command = $this->app->make(McpServerCommand::class);
     expect($command->getName())->toBe('telescope-mcp:server');
+});
+
+test('mcp server command exits cleanly with real StdioTransport when stdin closes (laravel/mcp smoke test)', function () {
+    // Spawns a real subprocess via vendor/bin/testbench so the actual StdioTransport::run() loop
+    // is exercised. Empty stdin causes feof() to return true immediately, exiting the loop.
+    // Any regression in the laravel/mcp API (StdioTransport constructor, run() signature,
+    // Mcp::local() registration, or Server::start()) will surface as a non-zero exit code.
+    $packageRoot = realpath(__DIR__ . '/../../../');
+
+    $process = new Process(
+        [PHP_BINARY, 'vendor/bin/testbench', 'telescope-mcp:server'],
+        $packageRoot,
+        null,
+        "\n",  // one newline so fgets() reads once before hitting EOF
+        10
+    );
+
+    $process->run();
+
+    expect($process->getExitCode())->toBe(0);
+});
+
+test('provider registers telescope-mcp local server via Mcp::local', function () {
+    $server = \Laravel\Mcp\Facades\Mcp::getLocalServer('telescope-mcp');
+
+    expect($server)->toBeCallable();
 });
