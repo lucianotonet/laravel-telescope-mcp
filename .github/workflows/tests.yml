@@ -63,7 +63,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: test-results-php-${{ matrix.php }}-laravel-${{ matrix.laravel }}
+          name: test-results-php-${{ matrix.php }}-laravel-${{ matrix.laravel }}-mcp-${{ matrix.mcp }}
           path: |
             storage/logs
             tests/results
