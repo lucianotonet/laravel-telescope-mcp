@@ -62,6 +62,7 @@ jobs:
 
       - name: Install Composer dependencies
         run: |
+          composer config policy.advisories.block false
           composer require "laravel/framework:${{ matrix.laravel }}" "orchestra/testbench:${{ matrix.testbench }}" "laravel/mcp:${{ matrix.mcp }}" --dev --no-interaction --no-update
           composer update --prefer-dist --no-progress
 
